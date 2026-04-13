@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <title>Pigly</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup" id="popup">
+
+    <!-- Header -->
+    <div class="popup-header">
+      <div class="popup-logo">
+        <img src="../icons/icon-32.png" alt="Pigly" width="24" height="24">
+        <span class="popup-brand">Pigly</span>
+      </div>
+      <a href="http://127.0.0.1:8000/dashboard/" target="_blank" class="header-dashboard-link" style="font-size: 11px; font-weight: 600; color: #6366f1; background: #eef2ff; padding: 4px 8px; border-radius: 6px; text-decoration: none; transition: background 0.15s;">Dashboard</a>
+    </div>
+
+    <!-- Loading state -->
+    <div id="state-loading" class="popup-state">
+      <div class="loader"></div>
+      <p class="popup-text-muted">Loading...</p>
+    </div>
+
+    <!-- Not authenticated -->
+    <div id="state-login" class="popup-state" style="display:none;">
+      <div class="popup-section text-center" style="padding-top: 24px; padding-bottom: 24px;">
+        <h2 style="font-size: 15px; font-weight: 600; color: #0f172a; margin-bottom: 8px;">Sign in</h2>
+        <p class="popup-text" style="margin-bottom: 20px;">Connect to your account to start generating AI replies.</p>
+        <button id="btn-login" class="btn-google">
+          <img src="../icons/Google.png" alt="Google" style="width: 20px; height: 20px;">
+          <span>Continue with Google</span>
+        </button>
+      </div>
+      <div class="popup-divider"></div>
+      <div class="popup-section popup-section-sm">
+        <p class="popup-text-muted">Pigly uses your browser session.</p>
+      </div>
+    </div>
+
+    <!-- Authenticated -->
+    <div id="state-user" class="popup-state" style="display:none;">
+      <div class="popup-section" style="padding-bottom: 8px;">
+        <div class="user-card" id="user-card-banner">
+          <div class="user-card-overlay"></div>
+          <div class="user-card-content" style="flex-direction: column; align-items: flex-start; gap: 4px;">
+            <div class="user-info" style="width: 100%;">
+              <div class="user-email" id="user-email">—</div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="plan-badge" id="user-plan">Free</span>
+                <span class="plan-expires" id="user-expires" style="display:none;"></span>
+              </div>
+            </div>
+
+            <!-- Free Upgrade Call to Action -->
+            <div id="free-upgrade-block" class="popup-free-cta" style="display:none;">
+              <div class="popup-free-text">Unlock unlimited generations ✨</div>
+              <a href="http://127.0.0.1:8000/#pricing" target="_blank" class="btn-upgrade-mini">Upgrade</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Free Limits Progress -->
+        <div id="free-progress-block" style="display:none; margin-top: 12px; padding: 0 4px;">
+           <div style="display:flex; justify-content:space-between; font-size: 11px; font-weight:600; color:#64748b; margin-bottom: 6px;">
+             <span>Generations left</span>
+             <span id="free-generations-text">5</span>
+           </div>
+           <div style="height: 6px; background: #e2e8f0; border-radius: 4px; overflow:hidden;">
+             <div id="free-progress-fill" style="height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6); border-radius: 4px; width: 100%; transition: width 0.3s ease;"></div>
+           </div>
+      </div>
+
+      <div class="popup-divider"></div>
+
+      <div class="popup-section" style="padding-top: 16px; padding-bottom: 8px;">
+        <div class="setting-group" style="margin-bottom: 4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label style="font-size: 13px;">Tone Styles</label>
+            <div class="status-message" id="settings-status" style="margin-top:0; min-height:initial;"></div>
+          </div>
+          <div class="pills-container" id="pills-styles">
+            <button class="style-pill" data-val="sharp">Sharp</button>
+            <button class="style-pill" data-val="supportive">Supportive</button>
+            <button class="style-pill" data-val="curious">Curious</button>
+            <button class="style-pill" data-val="expert">Expert</button>
+            <button class="style-pill" data-val="ironic">Ironic</button>
+            <a href="http://127.0.0.1:8000/dashboard/#styles" target="_blank" class="style-pill-add">+ Add</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="popup-divider"></div>
+
+      <div class="popup-section" style="padding-top: 12px; padding-bottom: 12px;">
+        <details class="settings-accordion" id="settings-accordion">
+          <summary class="settings-summary">
+            <span>Style Preferences</span>
+            <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </summary>
+          <div class="settings-content">
+            <div class="setting-group">
+              <label>Translate to</label>
+              <select id="sel-translate" class="setting-select">
+                <option value="">Not selected</option>
+                <option value="en">English</option>
+                <option value="ru">Russian</option>
+                <option value="zh">Chinese</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label>Comment Length</label>
+              <select id="sel-length" class="setting-select">
+                <option value="short">Short</option>
+                <option value="medium">Medium</option>
+                <option value="long">Long</option>
+                <option value="mix">Mix & varied</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label>Emojis</label>
+              <select id="sel-emoji" class="setting-select">
+                <option value="none">None</option>
+                <option value="moderate">Moderate</option>
+                <option value="many">Many</option>
+                <option value="mix">Mix & varied</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label>Dash style</label>
+              <select id="sel-dash" class="setting-select">
+                <option value="hyphen">Hyphen -</option>
+                <option value="ndash">En dash -</option>
+                <option value="mdash">Em dash —</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label>Capitalization</label>
+              <select id="sel-caps" class="setting-select">
+                <option value="upper">Initial uppercase</option>
+                <option value="preserve">As in source</option>
+                <option value="mix">Mix & varied</option>
+              </select>
+            </div>
+
+            <div class="setting-group">
+              <label>Punctuation</label>
+              <select id="sel-punct" class="setting-select">
+                <option value="none">No ending period</option>
+                <option value="keep">Keep standard</option>
+                <option value="mix">Mix</option>
+              </select>
+            </div>
+
+          </div>
+        </details>
+      </div>
+
+      <div class="popup-divider"></div>
+
+      <div class="popup-section popup-features" style="padding-top: 12px; padding-bottom: 12px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size: 13px; font-weight: 600; color: #1e293b;">AI Comments</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-replies" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size: 13px; font-weight: 600; color: #1e293b;">Post Shortener</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="toggle-shorten" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

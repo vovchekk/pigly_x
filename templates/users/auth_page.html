@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div x-data="authPage()" x-init="init()" class="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+    <div class="w-full max-w-2xl">
+        <a href="{% url 'core:landing' %}" class="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-slate-400 dark:hover:text-white">
+            <span>&larr;</span>
+            <span data-i18n="backToLanding">Back to landing</span>
+        </a>
+        <div class="glass-card rounded-[2rem] p-6 sm:p-8">
+            {% include "users/partials/login_form.html" with google_auth_enabled=google_auth_enabled %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function authPage() {
+    return {
+        lang: 'en',
+        copy: {
+            ru: {
+                pageTitle: 'Вход через Google',
+                backToLanding: 'Назад на главную',
+                authCardTitle: 'Войти на сайт через Google',
+                authCardLead: 'Это вход на сайт Pigly. Здесь будут храниться твои стили и настройки для расширения.',
+                googleAuthCta: 'Продолжить через Google',
+                googleLoginDisabled: 'Google login появится после добавления client id и secret.'
+            },
+            en: {
+                pageTitle: 'Continue with Google',
+                backToLanding: 'Back to landing',
+                authCardTitle: 'Sign in to the website with Google',
+                authCardLead: 'This signs you in to the Pigly website. Your style preferences and extension settings are stored here.',
+                googleAuthCta: 'Continue with Google',
+                googleLoginDisabled: 'Google login will appear after adding the client id and secret.'
+            }
+        },
+        init() {
+            const cookieLang = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith('pigly_site_lang=') || row.startsWith('django_language='));
+            const cookieValue = cookieLang ? cookieLang.split('=')[1] : null;
+            const saved = window.localStorage.getItem('pigly_site_lang');
+            const sourceLang = cookieValue || saved;
+            this.lang = sourceLang === 'ru' ? 'ru' : 'en';
+            this.applyLanguage();
+        },
+        applyLanguage() {
+            const values = this.copy[this.lang];
+            document.documentElement.lang = this.lang;
+            document.title = values.pageTitle || document.title;
+            document.querySelectorAll('[data-i18n]').forEach((node) => {
+                const key = node.dataset.i18n;
+                if (values[key]) {
+                    node.textContent = values[key];
+                }
+            });
+        }
+    };
+}
+</script>
+{% endblock %}

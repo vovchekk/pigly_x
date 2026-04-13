@@ -1,0 +1,19 @@
+{% load socialaccount %}
+{% load static %}
+<div class="space-y-5">
+    <div>
+        <h2 class="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white" data-i18n="authCardTitle">Sign in to the website with Google</h2>
+        <p class="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="authCardLead">This signs you in to the Pigly website. Your style preferences and extension settings are stored here.</p>
+    </div>
+
+    {% if google_auth_enabled %}
+        <a href="{% provider_login_url 'google' process='login' %}" class="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:hover:border-neutral-500 dark:hover:bg-neutral-800">
+            <img src="{% static 'images/Google.png' %}" alt="Google" class="h-5 w-5">
+            <span data-i18n="googleAuthCta">Continue with Google</span>
+        </a>
+    {% else %}
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
+            <span data-i18n="googleLoginDisabled">Google login will appear after adding the client id and secret.</span>
+        </div>
+    {% endif %}
+</div>
