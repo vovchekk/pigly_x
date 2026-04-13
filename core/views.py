@@ -271,6 +271,7 @@ def profile_view(request):
         ),
         "selected_comment_styles_json": json.dumps(profile.selected_comment_styles),
         "custom_comment_styles_json": json.dumps(profile.custom_comment_styles),
+        "preferred_variant_count": profile.preferred_variant_count,
         "promo_total": promo_total,
         "promo_remaining": promo_remaining,
         "promo_percent": int((promo_remaining / promo_total) * 100) if promo_total else 0,

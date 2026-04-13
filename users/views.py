@@ -94,6 +94,7 @@ def _build_auth_payload(request, token=None):
             "language": request.user.profile.preferred_language,
             "tone": request.user.profile.preferred_tone,
             "comment_styles": request.user.profile.selected_comment_styles,
+            "variant_count": request.user.profile.preferred_variant_count,
             "translate_to_language": request.user.profile.preferred_translate_language,
             "comment_length": request.user.profile.preferred_comment_length,
             "emoji_mode": request.user.profile.preferred_emoji_mode,
@@ -151,6 +152,14 @@ def profile_update_view(request):
     
     if "comment_styles" in data and isinstance(data["comment_styles"], list):
         profile.preferred_comment_styles = [s for s in data["comment_styles"] if s in dict(profile.COMMENT_STYLE_CHOICES)]
+
+    if "variant_count" in data:
+        try:
+            variant_count = int(data["variant_count"])
+        except (TypeError, ValueError):
+            variant_count = None
+        if variant_count in dict(profile.VARIANT_COUNT_CHOICES):
+            profile.preferred_variant_count = variant_count
         
     if "comment_length" in data and data["comment_length"] in dict(profile.LENGTH_CHOICES):
         profile.preferred_comment_length = data["comment_length"]
@@ -169,6 +178,7 @@ def profile_update_view(request):
 
     profile.save(update_fields=[
         "preferred_comment_styles", 
+        "preferred_variant_count",
         "preferred_comment_length", 
         "preferred_emoji_mode",
         "preferred_dash_style",

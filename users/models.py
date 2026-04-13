@@ -46,6 +46,15 @@ def generate_random_username():
 
 
 class UserProfile(models.Model):
+    VARIANT_ONE = 1
+    VARIANT_TWO = 2
+    VARIANT_THREE = 3
+    VARIANT_COUNT_CHOICES = (
+        (VARIANT_ONE, "1"),
+        (VARIANT_TWO, "2"),
+        (VARIANT_THREE, "3"),
+    )
+
     TRANSLATE_NONE = ""
     TRANSLATE_ENGLISH = "en"
     TRANSLATE_RUSSIAN = "ru"
@@ -124,6 +133,7 @@ class UserProfile(models.Model):
     preferred_tone = models.CharField(max_length=32, default="friendly")
     preferred_comment_styles = models.JSONField(default=list, blank=True)
     preferred_custom_comment_styles = models.JSONField(default=list, blank=True)
+    preferred_variant_count = models.PositiveSmallIntegerField(choices=VARIANT_COUNT_CHOICES, default=VARIANT_THREE)
     preferred_translate_language = models.CharField(max_length=8, choices=TRANSLATE_CHOICES, default="", blank=True)
     preferred_comment_length = models.CharField(max_length=16, choices=LENGTH_CHOICES, default=LENGTH_MIX)
     preferred_emoji_mode = models.CharField(max_length=16, choices=EMOJI_CHOICES, default=EMOJI_MODERATE)

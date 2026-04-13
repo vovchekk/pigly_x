@@ -76,6 +76,7 @@ class UserProfileForm(forms.ModelForm):
     preferred_tone = forms.ChoiceField(choices=TONE_CHOICES)
     preferred_comment_styles_json = forms.CharField(required=False, widget=forms.HiddenInput)
     preferred_custom_comment_styles_json = forms.CharField(required=False, widget=forms.HiddenInput)
+    preferred_variant_count = forms.TypedChoiceField(choices=UserProfile.VARIANT_COUNT_CHOICES, coerce=int)
     preferred_translate_language = forms.ChoiceField(choices=UserProfile.TRANSLATE_CHOICES, required=False)
     preferred_comment_length = forms.ChoiceField(choices=UserProfile.LENGTH_CHOICES)
     preferred_emoji_mode = forms.ChoiceField(choices=UserProfile.EMOJI_CHOICES)
@@ -157,6 +158,7 @@ class UserProfileForm(forms.ModelForm):
             "preferred_tone",
             "preferred_comment_styles_json",
             "preferred_custom_comment_styles_json",
+            "preferred_variant_count",
             "preferred_translate_language",
             "preferred_comment_length",
             "preferred_emoji_mode",

@@ -252,7 +252,14 @@
 
         // Fetch variants
         chrome.runtime.sendMessage(
-          { action: "reply", payload: { text: tweetText, context: "" } },
+          {
+            action: "reply",
+            payload: {
+              text: tweetText,
+              context: "",
+              variant_count: sessionRes.user?.defaults?.variant_count || 3
+            }
+          },
           (response) => {
             if (response && response.ok) {
               renderVariants(contentBox, response.data.request, tweetText);

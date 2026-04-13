@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Pigly",
   "version": "0.1.0",
-  "description": "AI-powered assistant for X/Twitter — shorten posts and generate smart replies.",
+  "description": "AI-powered assistant for X/Twitter | shorten posts and generate smart replies.",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "https://x.com/*",

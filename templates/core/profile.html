@@ -46,6 +46,10 @@
             <div class="relative z-10 mt-8 max-w-md">
                 <div class="text-sm text-slate-500 dark:text-slate-400" data-i18n="planLabel">Plan</div>
                 <div class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{{ current_plan }}</div>
+                <div class="mt-3 inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm dark:border-neutral-700 dark:bg-neutral-900/80 dark:text-slate-200">
+                    <span class="text-slate-500 dark:text-slate-400">Reply variants</span>
+                    <span class="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-indigo-600 px-2 text-white">{{ preferred_variant_count }}</span>
+                </div>
                 {% if expires_at %}
                 <div class="mt-1 text-sm font-medium text-slate-500">Expires: {{ expires_at|date:"d M Y, H:i" }}</div>
                 {% endif %}
@@ -67,7 +71,8 @@
             x-data="commentStyleSettings({
                 presetStyles: JSON.parse('{{ comment_style_options_json|escapejs }}'),
                 customStyles: JSON.parse('{{ custom_comment_styles_json|escapejs }}'),
-                selectedStyleIds: JSON.parse('{{ selected_comment_styles_json|escapejs }}')
+                selectedStyleIds: JSON.parse('{{ selected_comment_styles_json|escapejs }}'),
+                initialVariantCount: {{ preferred_variant_count|default:3 }}
             })"
         >
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -83,12 +88,31 @@
                 <input type="hidden" name="{{ form.preferred_tone.html_name }}" value="{{ form.instance.preferred_tone }}">
                 <input type="hidden" name="{{ form.preferred_comment_styles_json.html_name }}" :value="selectedStyleIdsJson">
                 <input type="hidden" name="{{ form.preferred_custom_comment_styles_json.html_name }}" :value="customStylesJson">
+                <input type="hidden" name="{{ form.preferred_variant_count.html_name }}" :value="variantCount">
 
                 <div id="styles" class="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950">
                     <div class="flex items-center justify-between gap-3">
                         <h3 class="text-lg font-semibold text-slate-950 dark:text-white" data-i18n="stylesTitle">Styles</h3>
                     </div>
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400" data-i18n="stylesLead">Choose one or several styles. At least one style must stay selected.</p>
+
+                    <div class="mt-5 inline-flex items-center gap-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-3 py-2 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
+                        <span class="text-sm font-medium text-slate-600 dark:text-slate-300">Generations</span>
+                        <div class="flex gap-1 rounded-full border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/70">
+                            <template x-for="count in [1, 2, 3]" :key="count">
+                                <button
+                                    type="button"
+                                    @click="variantCount = count; queueSave()"
+                                    class="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all"
+                                    :class="variantCount === count
+                                        ? 'bg-indigo-600 text-white shadow-md'
+                                        : 'text-slate-500 hover:bg-slate-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-100'"
+                                >
+                                    <span x-text="count"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
 
                     <div class="mt-6 grid gap-4 md:grid-cols-2">
                         <template x-for="style in allStyles" :key="style.id">
@@ -499,6 +523,7 @@ function commentStyleSettings(config) {
         presetStyles: Array.isArray(config.presetStyles) ? config.presetStyles : [],
         customStyles: Array.isArray(config.customStyles) ? config.customStyles.map((style) => ({ ...style, isCustom: true })) : [],
         selectedStyleIds: Array.isArray(config.selectedStyleIds) && config.selectedStyleIds.length ? config.selectedStyleIds : ['supportive'],
+        variantCount: Number(config.initialVariantCount || 3),
         promptModalStyle: null,
         showCustomStyleComposer: false,
         newCustomStyleName: '',
@@ -508,6 +533,7 @@ function commentStyleSettings(config) {
         isSaving: false,
         init() {
             if (!this.selectedStyleIds.length) this.selectedStyleIds = ['supportive'];
+            if (![1, 2, 3].includes(this.variantCount)) this.variantCount = 3;
         },
         get allStyles() {
             return [
