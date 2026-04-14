@@ -3,6 +3,7 @@ import json
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import JsonResponse
@@ -84,7 +85,7 @@ def _redeem_promo_code(*, user, raw_code):
     return True, f"Promo code activated. {promo.get_plan_display()} access granted."
 
 
-def _build_admin_usage_rows():
+def _build_admin_usage_rows(page_number=1, per_page=8):
     now = timezone.now()
     day_ago = now - timezone.timedelta(days=1)
 
@@ -114,7 +115,8 @@ def _build_admin_usage_rows():
                 "plan_choices": PlanAccess.PLAN_CHOICES,
             }
         )
-    return rows
+    paginator = Paginator(rows, per_page)
+    return paginator.get_page(page_number)
 
 
 def landing_view(request):
@@ -141,16 +143,17 @@ def profile_view(request):
     if request.method == "POST":
         admin_plan_user_id = request.POST.get("admin_plan_user_id")
         admin_plan_value = request.POST.get("admin_plan")
+        admin_page = request.POST.get("admin_page") or request.GET.get("admin_page") or 1
         if admin_plan_user_id and admin_plan_value and request.user.is_staff:
             target_user = User.objects.filter(pk=admin_plan_user_id).select_related("plan_access").first()
             valid_plans = {choice[0] for choice in PlanAccess.PLAN_CHOICES}
             if not target_user or admin_plan_value not in valid_plans:
                 messages.error(request, "Could not update the user plan.")
-                return redirect("core:dashboard")
+                return redirect(f"{settings.LOGIN_REDIRECT_URL}?admin_page={admin_page}")
             _apply_plan_access_defaults(target_user.plan_access, admin_plan_value)
             target_user.plan_access.save(update_fields=["plan", "ai_reply_limit", "shorten_limit"])
             messages.success(request, f"Plan updated for {target_user.email}.")
-            return redirect("core:dashboard")
+            return redirect(f"{settings.LOGIN_REDIRECT_URL}?admin_page={admin_page}")
 
         promo_code = request.POST.get("promo_code")
         if promo_code is not None:
@@ -185,7 +188,8 @@ def profile_view(request):
     promo_remaining = sum(max(promo.max_activations - promo.activations_count, 0) for promo in promo_codes)
     promo_cooldown = _get_promo_cooldown_info(request.user)
     show_admin_usage = request.user.is_staff
-    admin_usage_rows = _build_admin_usage_rows() if show_admin_usage else []
+    admin_page = request.GET.get("admin_page", 1)
+    admin_usage_page = _build_admin_usage_rows(admin_page) if show_admin_usage else None
 
     context = {
         "form": form,
@@ -282,6 +286,7 @@ def profile_view(request):
         "shorten_remaining": plan_access.shorten_remaining,
         "expires_at": plan_access.expires_at,
         "show_admin_usage": show_admin_usage,
-        "admin_usage_rows": admin_usage_rows,
+        "admin_usage_page": admin_usage_page,
+        "admin_usage_rows": admin_usage_page.object_list if admin_usage_page else [],
     }
     return render(request, "core/profile.html", context)

@@ -1,5 +1,6 @@
 import random
 import secrets
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -224,26 +225,109 @@ class PlanAccess(models.Model):
 
 
 class Purchase(models.Model):
+    PROVIDER_MANUAL = "manual"
+    PROVIDER_NOWPAYMENTS = "nowpayments"
+    PROVIDER_WALLET = "wallet"
+    PROVIDER_CHOICES = (
+        (PROVIDER_MANUAL, "Manual"),
+        (PROVIDER_NOWPAYMENTS, "NOWPayments"),
+        (PROVIDER_WALLET, "Wallet"),
+    )
+
     STATUS_PENDING = "pending"
+    STATUS_CREATED = "created"
+    STATUS_WAITING = "waiting"
     STATUS_PAID = "paid"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_FINISHED = "finished"
     STATUS_CANCELLED = "cancelled"
+    STATUS_FAILED = "failed"
+    STATUS_EXPIRED = "expired"
+    STATUS_REFUNDED = "refunded"
+    STATUS_CREATE_FAILED = "create_failed"
+    STATUS_WALLET_WAITING = "wallet_waiting"
+    STATUS_WALLET_CONFIRMED = "wallet_confirmed"
+    STATUS_WALLET_FAILED = "wallet_failed"
+    STATUS_WALLET_REJECTED = "wallet_rejected"
     STATUS_CHOICES = (
         (STATUS_PENDING, "Pending"),
+        (STATUS_CREATED, "Created"),
+        (STATUS_WAITING, "Waiting"),
         (STATUS_PAID, "Paid"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_FINISHED, "Finished"),
         (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_FAILED, "Failed"),
+        (STATUS_EXPIRED, "Expired"),
+        (STATUS_REFUNDED, "Refunded"),
+        (STATUS_CREATE_FAILED, "Create failed"),
+        (STATUS_WALLET_WAITING, "Wallet waiting"),
+        (STATUS_WALLET_CONFIRMED, "Wallet confirmed"),
+        (STATUS_WALLET_FAILED, "Wallet failed"),
+        (STATUS_WALLET_REJECTED, "Wallet rejected"),
     )
+
+    PAID_STATUSES = {STATUS_PAID, STATUS_CONFIRMED, STATUS_FINISHED, STATUS_WALLET_CONFIRMED}
+    CANCELLED_STATUSES = {
+        STATUS_CANCELLED,
+        STATUS_FAILED,
+        STATUS_EXPIRED,
+        STATUS_REFUNDED,
+        STATUS_CREATE_FAILED,
+        STATUS_WALLET_FAILED,
+        STATUS_WALLET_REJECTED,
+    }
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="purchases")
     plan = models.CharField(max_length=16, choices=PlanAccess.PLAN_CHOICES, default=PlanAccess.PLAN_PRO)
     amount_usd = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    provider = models.CharField(max_length=24, choices=PROVIDER_CHOICES, default=PROVIDER_MANUAL)
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    order_id = models.CharField(max_length=100, blank=True, db_index=True)
+    provider_payment_id = models.CharField(max_length=100, blank=True)
+    provider_invoice_id = models.CharField(max_length=100, blank=True)
+    invoice_url = models.URLField(blank=True)
+    amount_crypto = models.DecimalField(max_digits=20, decimal_places=10, null=True, blank=True)
+    currency = models.CharField(max_length=16, blank=True)
+    network = models.CharField(max_length=32, blank=True)
+    tx_hash = models.CharField(max_length=255, blank=True)
+    raw_payload = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at", "-id"]
 
     def __str__(self):
         return f"{self.user.email} - {self.plan} - {self.status}"
+
+    @property
+    def is_paid(self):
+        return self.status in self.PAID_STATUSES
+
+    @property
+    def ui_status(self):
+        if self.status in self.PAID_STATUSES:
+            return "paid"
+        if self.status in self.CANCELLED_STATUSES:
+            return "cancelled"
+        return "pending"
+
+    @property
+    def ui_status_label(self):
+        labels = {
+            "paid": "Paid",
+            "cancelled": "Cancelled",
+            "pending": "Pending",
+        }
+        return labels[self.ui_status]
+
+    @property
+    def amount_crypto_display(self):
+        if self.amount_crypto is None:
+            return ""
+        normalized = Decimal(self.amount_crypto).normalize()
+        return format(normalized, "f")
 
 
 class PromoCode(models.Model):

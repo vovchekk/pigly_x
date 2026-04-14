@@ -127,7 +127,8 @@ def _build_auth_payload(request, token=None):
 @require_api_auth
 @require_http_methods(["GET"])
 def extension_session_view(request):
-    payload = _build_auth_payload(request)
+    token, _ = ExtensionAccessToken.objects.get_or_create(user=request.user)
+    payload = _build_auth_payload(request, token=token)
     payload["csrf_token"] = get_token(request)
     return JsonResponse(payload)
 

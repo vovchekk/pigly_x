@@ -9,7 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const userCardBanner = document.getElementById("user-card-banner");
 
   const freeUpgradeBlock = document.getElementById("free-upgrade-block");
+  const proSupportBlock = document.getElementById("pro-support-block");
   const freeProgressBlock = document.getElementById("free-progress-block");
+  const freeGenerationsLabel = document.getElementById("free-generations-label");
   const freeGenerationsText = document.getElementById("free-generations-text");
   const freeProgressFill = document.getElementById("free-progress-fill");
 
@@ -71,22 +73,34 @@ document.addEventListener("DOMContentLoaded", () => {
       userCardBanner.style.backgroundImage = `url('${bgUrl}')`;
     }
 
+    if (freeProgressBlock) {
+      freeProgressBlock.style.display = "";
+    }
+
     if (plan === "free") {
       userPlan.style.display = "none";
       if (freeUpgradeBlock) freeUpgradeBlock.style.display = "flex";
+      if (proSupportBlock) proSupportBlock.style.display = "none";
       if (freeProgressBlock) {
-        freeProgressBlock.style.display = "";
         const maxTokens = 5;
         const remaining = Math.min(typeof user.reply_remaining === "number" ? user.reply_remaining : maxTokens, maxTokens);
         const percent = Math.max((remaining / maxTokens) * 100, 0);
 
+        if (freeGenerationsLabel) freeGenerationsLabel.textContent = "Generations left";
         if (freeGenerationsText) freeGenerationsText.textContent = remaining;
         if (freeProgressFill) freeProgressFill.style.width = `${percent}%`;
       }
     } else {
       userPlan.style.display = "";
       if (freeUpgradeBlock) freeUpgradeBlock.style.display = "none";
+      if (proSupportBlock) proSupportBlock.style.display = plan === "pro" ? "flex" : "none";
       if (freeProgressBlock) freeProgressBlock.style.display = "none";
+      if (freeProgressBlock) {
+        freeProgressBlock.style.display = "";
+        if (freeGenerationsLabel) freeGenerationsLabel.textContent = "Generations";
+        if (freeGenerationsText) freeGenerationsText.textContent = "Unlimited";
+        if (freeProgressFill) freeProgressFill.style.width = "100%";
+      }
     }
 
     if (user.expires_at && userExpires) {

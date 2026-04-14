@@ -1,10 +1,13 @@
+import json
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from users.adapters import PiglySocialAccountAdapter
+from users.billing import nowpayments_signature
 from users.models import ExtensionAccessToken, PromoCode, PromoCodeRedemption, Purchase, User
 
 
@@ -24,7 +27,7 @@ class DashboardTests(TestCase):
         self.assertContains(response, "Dashboard")
         self.assertContains(response, "Comment writing settings")
         self.assertContains(response, "Payment history")
-        self.assertContains(response, "Current privilege")
+        self.assertContains(response, "Upgrade plan")
 
     def test_dashboard_updates_profile_defaults(self):
         response = self.client.post(
@@ -34,6 +37,7 @@ class DashboardTests(TestCase):
                 "preferred_tone": "neutral",
                 "preferred_comment_styles_json": "[\"expert\", \"ironic\"]",
                 "preferred_custom_comment_styles_json": "[]",
+                "preferred_variant_count": "3",
                 "preferred_translate_language": "en",
                 "preferred_comment_length": "medium",
                 "preferred_emoji_mode": "none",
@@ -66,9 +70,9 @@ class DashboardTests(TestCase):
         self.assertContains(response, "$12.00")
 
     def test_dashboard_redeems_promo_code(self):
-        PromoCode.objects.create(code="BROSKILUDOSKI", plan="pro", duration_days=30, max_activations=5)
+        PromoCode.objects.create(code="BROSKILUDOSKI-TEST", plan="pro", duration_days=30, max_activations=5)
 
-        response = self.client.post(reverse("core:dashboard"), data={"promo_code": "BROSKILUDOSKI"}, follow=True)
+        response = self.client.post(reverse("core:dashboard"), data={"promo_code": "BROSKILUDOSKI-TEST"}, follow=True)
 
         self.assertEqual(response.status_code, 200)
         self.user.plan_access.refresh_from_db()
@@ -78,6 +82,7 @@ class DashboardTests(TestCase):
         self.assertEqual(PromoCodeRedemption.objects.filter(user=self.user).count(), 1)
 
     def test_dashboard_requires_at_least_one_style(self):
+        original_styles = list(self.user.profile.preferred_comment_styles)
         response = self.client.post(
             reverse("core:dashboard"),
             data={
@@ -85,6 +90,7 @@ class DashboardTests(TestCase):
                 "preferred_tone": "neutral",
                 "preferred_comment_styles_json": "[]",
                 "preferred_custom_comment_styles_json": "[]",
+                "preferred_variant_count": "3",
                 "preferred_translate_language": "",
                 "preferred_comment_length": "mix",
                 "preferred_emoji_mode": "moderate",
@@ -95,7 +101,8 @@ class DashboardTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Select at least one style.")
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.preferred_comment_styles, original_styles)
 
 
 class PublicAuthUiTests(TestCase):
@@ -163,3 +170,375 @@ class GoogleAdapterTests(TestCase):
         PiglySocialAccountAdapter().pre_social_login(request=None, sociallogin=sociallogin)
 
         sociallogin.connect.assert_called_once_with(None, user)
+
+
+class NowPaymentsCheckoutTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="payer@example.com",
+            username="payer",
+            password="secret12345",
+        )
+        self.client.force_login(self.user)
+
+    @override_settings(
+        NOWPAYMENTS_API_KEY="api-key",
+        NOWPAYMENTS_IPN_SECRET="ipn-secret",
+        NOWPAYMENTS_API_BASE_URL="https://api.nowpayments.io",
+        SITE_URL="https://pigly.example",
+    )
+    @patch("core.payment_views.requests.post")
+    def test_create_invoice_returns_nowpayments_invoice_url(self, post_mock):
+        response_mock = Mock()
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {
+            "id": "invoice-123",
+            "invoice_url": "https://nowpayments.io/payment/?iid=invoice-123",
+            "status": "waiting",
+        }
+        post_mock.return_value = response_mock
+
+        response = self.client.post(reverse("core:pricing_create_payment"), {"plan": "pro"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["invoice_url"], "https://nowpayments.io/payment/?iid=invoice-123")
+        purchase = Purchase.objects.get(user=self.user)
+        self.assertEqual(purchase.plan, "pro")
+        self.assertEqual(purchase.provider, Purchase.PROVIDER_NOWPAYMENTS)
+        self.assertEqual(purchase.amount_usd, 2)
+        self.assertEqual(purchase.provider_invoice_id, "invoice-123")
+        self.assertEqual(purchase.status, "waiting")
+        sent_payload = post_mock.call_args.kwargs["json"]
+        self.assertEqual(sent_payload["price_amount"], "2.00")
+        self.assertEqual(sent_payload["ipn_callback_url"], "https://pigly.example/payments/nowpayments/ipn/")
+
+    @override_settings(NOWPAYMENTS_API_KEY="", NOWPAYMENTS_IPN_SECRET="ipn-secret")
+    def test_create_invoice_requires_nowpayments_settings(self):
+        response = self.client.post(reverse("core:pricing_create_payment"), {"plan": "pro"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["error"], "nowpayments_not_configured")
+
+
+class NowPaymentsIpnTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="ipn-payer@example.com",
+            username="ipnpayer",
+            password="secret12345",
+        )
+        self.purchase = Purchase.objects.create(
+            user=self.user,
+            plan="pro",
+            provider=Purchase.PROVIDER_NOWPAYMENTS,
+            order_id="pigly-test-order",
+            amount_usd=2,
+            status="waiting",
+        )
+
+    @override_settings(NOWPAYMENTS_IPN_SECRET="ipn-secret")
+    def test_finished_ipn_activates_subscription(self):
+        payload = {
+            "order_id": "pigly-test-order",
+            "payment_id": 123456,
+            "payment_status": "finished",
+            "actually_paid": "2.10",
+        }
+        signature = nowpayments_signature(payload)
+
+        response = self.client.post(
+            reverse("core:nowpayments_ipn"),
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_NOWPAYMENTS_SIG=signature,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.purchase.refresh_from_db()
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(self.purchase.status, "finished")
+        self.assertEqual(self.purchase.provider_payment_id, "123456")
+        self.assertEqual(self.user.plan_access.plan, "pro")
+        self.assertGreater(self.user.plan_access.expires_at, timezone.now())
+
+    @override_settings(NOWPAYMENTS_IPN_SECRET="ipn-secret")
+    def test_ipn_rejects_bad_signature(self):
+        payload = {
+            "order_id": "pigly-test-order",
+            "payment_id": 123456,
+            "payment_status": "finished",
+        }
+
+        response = self.client.post(
+            reverse("core:nowpayments_ipn"),
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_NOWPAYMENTS_SIG="bad-signature",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(self.user.plan_access.plan, "free")
+
+    @override_settings(NOWPAYMENTS_IPN_SECRET="ipn-secret")
+    def test_repeated_finished_ipn_does_not_extend_subscription_twice(self):
+        payload = {
+            "order_id": "pigly-test-order",
+            "payment_id": 123456,
+            "payment_status": "finished",
+        }
+        signature = nowpayments_signature(payload)
+
+        first_response = self.client.post(
+            reverse("core:nowpayments_ipn"),
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_NOWPAYMENTS_SIG=signature,
+        )
+        self.assertEqual(first_response.status_code, 200)
+        self.user.plan_access.refresh_from_db()
+        first_expiry = self.user.plan_access.expires_at
+
+        second_response = self.client.post(
+            reverse("core:nowpayments_ipn"),
+            data=json.dumps(payload),
+            content_type="application/json",
+            HTTP_X_NOWPAYMENTS_SIG=signature,
+        )
+
+        self.assertEqual(second_response.status_code, 200)
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(self.user.plan_access.expires_at, first_expiry)
+
+
+class WalletPaymentTests(TestCase):
+    receiver = "0x1111111111111111111111111111111111111111"
+    payer = "0x2222222222222222222222222222222222222222"
+    tx_hash = "0x" + "a" * 64
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="wallet-payer@example.com",
+            username="walletpayer",
+            password="secret12345",
+        )
+        self.client.force_login(self.user)
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS="")
+    def test_create_wallet_payment_requires_receiver_address(self):
+        response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "base", "payer_address": self.payer},
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["error"], "web3_receiver_not_configured")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver)
+    def test_create_wallet_payment_returns_transfer_details(self):
+        response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "base", "payer_address": self.payer},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["amount_units"], "2000000")
+        self.assertEqual(data["receiver_address"], self.receiver.lower())
+        self.assertEqual(data["chain"]["key"], "base")
+        purchase = Purchase.objects.get(pk=data["payment_id"])
+        self.assertEqual(purchase.status, Purchase.STATUS_WALLET_WAITING)
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver)
+    def test_create_wallet_payment_supports_ethereum_mainnet(self):
+        response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "ethereum", "payer_address": self.payer},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["chain"]["key"], "ethereum")
+        self.assertEqual(data["chain"]["chain_id"], 1)
+        self.assertEqual(data["token_address"], "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver)
+    def test_create_wallet_payment_supports_abstract(self):
+        response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "abstract", "payer_address": self.payer},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["chain"]["key"], "abstract")
+        self.assertEqual(data["chain"]["chain_id"], 2741)
+        self.assertEqual(data["chain"]["chain_id_hex"], "0xab5")
+        self.assertEqual(data["token_address"], "0x84A71ccD554Cc1b02749b35d22F684CC8ec987e1")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver, WEB3_BASE_RPC_URL="https://base.example/rpc")
+    @patch("core.payment_views.requests.post")
+    def test_verify_wallet_payment_activates_subscription(self, post_mock):
+        create_response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "base", "payer_address": self.payer},
+        )
+        payment_id = create_response.json()["payment_id"]
+        transfer_amount_hex = hex(2_000_000)
+        receipt = {
+            "status": "0x1",
+            "logs": [{
+                "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "topics": [
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "0x0000000000000000000000002222222222222222222222222222222222222222",
+                    "0x0000000000000000000000001111111111111111111111111111111111111111",
+                ],
+                "data": transfer_amount_hex,
+            }],
+        }
+        response_mock = Mock()
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {"result": receipt}
+        post_mock.return_value = response_mock
+
+        response = self.client.post(
+            reverse("core:pricing_verify_wallet_payment"),
+            {"payment_id": payment_id, "tx_hash": self.tx_hash},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        purchase = Purchase.objects.get(pk=payment_id)
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(purchase.status, Purchase.STATUS_WALLET_CONFIRMED)
+        self.assertEqual(purchase.tx_hash, self.tx_hash)
+        self.assertEqual(self.user.plan_access.plan, "pro")
+        self.assertGreater(self.user.plan_access.expires_at, timezone.now())
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver, WEB3_BASE_RPC_URL="https://base.example/rpc")
+    @patch("core.payment_views.requests.post")
+    def test_verify_wallet_payment_rejects_non_exact_usdc_amount(self, post_mock):
+        create_response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "base", "payer_address": self.payer},
+        )
+        payment_id = create_response.json()["payment_id"]
+        receipt = {
+            "status": "0x1",
+            "logs": [{
+                "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+                "topics": [
+                    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+                    "0x0000000000000000000000002222222222222222222222222222222222222222",
+                    "0x0000000000000000000000001111111111111111111111111111111111111111",
+                ],
+                "data": hex(2_000_001),
+            }],
+        }
+        response_mock = Mock()
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {"result": receipt}
+        post_mock.return_value = response_mock
+
+        response = self.client.post(
+            reverse("core:pricing_verify_wallet_payment"),
+            {"payment_id": payment_id, "tx_hash": self.tx_hash},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "expected_transfer_not_found")
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(self.user.plan_access.plan, "free")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver, WEB3_ETHEREUM_RPC_URL="https://eth.example/rpc")
+    @patch("core.payment_views.requests.post")
+    def test_verify_eth_wallet_payment_activates_subscription(self, post_mock):
+        create_response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "ethereum", "currency": "eth", "payer_address": self.payer},
+        )
+        payment_id = create_response.json()["payment_id"]
+        amount_wei = int(create_response.json()["amount_wei"], 16)
+        receipt = {"status": "0x1", "logs": []}
+        transaction = {
+            "from": self.payer,
+            "to": self.receiver,
+            "value": hex(amount_wei),
+        }
+        receipt_response = Mock()
+        receipt_response.raise_for_status.return_value = None
+        receipt_response.json.return_value = {"result": receipt}
+        tx_response = Mock()
+        tx_response.raise_for_status.return_value = None
+        tx_response.json.return_value = {"result": transaction}
+        post_mock.side_effect = [receipt_response, tx_response]
+
+        response = self.client.post(
+            reverse("core:pricing_verify_wallet_payment"),
+            {"payment_id": payment_id, "tx_hash": self.tx_hash},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        purchase = Purchase.objects.get(pk=payment_id)
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(purchase.status, Purchase.STATUS_WALLET_CONFIRMED)
+        self.assertEqual(self.user.plan_access.plan, "pro")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver, WEB3_ETHEREUM_RPC_URL="https://eth.example/rpc")
+    @patch("core.payment_views.requests.post")
+    def test_verify_eth_wallet_payment_rejects_non_exact_amount(self, post_mock):
+        create_response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "ethereum", "currency": "eth", "payer_address": self.payer},
+        )
+        payment_id = create_response.json()["payment_id"]
+        amount_wei = int(create_response.json()["amount_wei"], 16)
+        receipt = {"status": "0x1", "logs": []}
+        transaction = {
+            "from": self.payer,
+            "to": self.receiver,
+            "value": hex(amount_wei + 1),
+        }
+        receipt_response = Mock()
+        receipt_response.raise_for_status.return_value = None
+        receipt_response.json.return_value = {"result": receipt}
+        tx_response = Mock()
+        tx_response.raise_for_status.return_value = None
+        tx_response.json.return_value = {"result": transaction}
+        post_mock.side_effect = [receipt_response, tx_response]
+
+        response = self.client.post(
+            reverse("core:pricing_verify_wallet_payment"),
+            {"payment_id": payment_id, "tx_hash": self.tx_hash},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "expected_transfer_not_found")
+        self.user.plan_access.refresh_from_db()
+        self.assertEqual(self.user.plan_access.plan, "free")
+
+    @override_settings(WEB3_PAYMENT_RECEIVER_ADDRESS=receiver, WEB3_BASE_RPC_URL="https://base.example/rpc")
+    @patch("core.payment_views.requests.post")
+    def test_verify_wallet_payment_rejects_reused_tx_hash(self, post_mock):
+        existing = Purchase.objects.create(
+            user=self.user,
+            plan="pro",
+            provider=Purchase.PROVIDER_WALLET,
+            amount_usd="2.00",
+            status=Purchase.STATUS_WALLET_CONFIRMED,
+            tx_hash=self.tx_hash,
+        )
+        create_response = self.client.post(
+            reverse("core:pricing_create_wallet_payment"),
+            {"plan": "pro", "network": "base", "payer_address": self.payer},
+        )
+        payment_id = create_response.json()["payment_id"]
+
+        response = self.client.post(
+            reverse("core:pricing_verify_wallet_payment"),
+            {"payment_id": payment_id, "tx_hash": self.tx_hash},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"], "tx_already_used")
+        self.assertTrue(existing.pk)

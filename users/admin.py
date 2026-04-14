@@ -63,8 +63,8 @@ class PlanAccessInline(admin.StackedInline):
 class PurchaseInline(admin.TabularInline):
     model = Purchase
     extra = 0
-    fields = ("plan", "amount_usd", "status", "created_at")
-    readonly_fields = ("created_at",)
+    fields = ("provider", "plan", "amount_usd", "status", "order_id", "created_at")
+    readonly_fields = ("created_at", "order_id")
     ordering = ("-created_at",)
 
 
@@ -230,10 +230,9 @@ class PlanAccessAdmin(admin.ModelAdmin):
 
 @admin.register(Purchase)
 class PurchaseAdmin(admin.ModelAdmin):
-    list_display = ("user", "plan", "amount_usd", "status", "created_at")
-    list_filter = ("plan", "status", "created_at")
-    search_fields = ("user__email", "user__username")
-    list_editable = ("status",)
+    list_display = ("user", "provider", "plan", "amount_usd", "status", "provider_invoice_id", "created_at")
+    list_filter = ("provider", "plan", "status", "created_at")
+    search_fields = ("user__email", "user__username", "order_id", "provider_payment_id", "provider_invoice_id", "tx_hash")
 
 
 @admin.register(ExtensionAccessToken)

@@ -150,6 +150,14 @@ EXTENSION_INSTALL_URL = config("EXTENSION_INSTALL_URL", default="#")
 EXTENSION_TOKEN_PREFIX = "pigly_"
 TURNSTILE_SITE_KEY = config("TURNSTILE_SITE_KEY", default="")
 TURNSTILE_SECRET_KEY = config("TURNSTILE_SECRET_KEY", default="")
+NOWPAYMENTS_API_KEY = config("NOWPAYMENTS_API_KEY", default="")
+NOWPAYMENTS_IPN_SECRET = config("NOWPAYMENTS_IPN_SECRET", default="")
+NOWPAYMENTS_API_BASE_URL = config("NOWPAYMENTS_API_BASE_URL", default="https://api.nowpayments.io").rstrip("/")
+WEB3_PAYMENT_RECEIVER_ADDRESS = config("WEB3_PAYMENT_RECEIVER_ADDRESS", default="")
+WEB3_ETHEREUM_RPC_URL = config("WEB3_ETHEREUM_RPC_URL", default="https://ethereum.publicnode.com")
+WEB3_BASE_RPC_URL = config("WEB3_BASE_RPC_URL", default="https://mainnet.base.org")
+WEB3_ARBITRUM_RPC_URL = config("WEB3_ARBITRUM_RPC_URL", default="https://arb1.arbitrum.io/rpc")
+WEB3_ABSTRACT_RPC_URL = config("WEB3_ABSTRACT_RPC_URL", default="https://api.mainnet.abs.xyz")
 
 AUTH_RATE_LIMITS = {
     "login_ip": (100, 10 * 60),

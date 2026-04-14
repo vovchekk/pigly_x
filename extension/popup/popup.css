@@ -319,10 +319,19 @@ body {
   gap: 10px;
 }
 
+.popup-support-cta {
+  display: inline-flex;
+  width: auto;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .popup-free-text {
   font-size: 12px;
   font-weight: 700;
   color: var(--text);
+  line-height: 1.25;
 }
 
 .btn-upgrade-mini {
@@ -340,10 +349,18 @@ body {
   box-shadow: 0 10px 18px rgba(245, 158, 11, 0.28);
 }
 
+.btn-support-mini {
+  background: linear-gradient(135deg, #f4b740, #e89a1b);
+}
+
+.btn-support-mini:hover {
+  background: linear-gradient(135deg, #efb536, #db8d11);
+}
+
 .usage-card {
   margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  padding: 10px 12px;
+  border-radius: 15px;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(148, 163, 184, 0.16);
 }
@@ -352,7 +369,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .usage-meter {
@@ -363,14 +380,14 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   color: var(--muted-strong);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .usage-track {
-  height: 6px;
+  height: 5px;
   overflow: hidden;
   border-radius: 999px;
   background: #ebe6df;
@@ -387,8 +404,8 @@ body {
 .usage-toggles {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-left: 12px;
+  gap: 6px;
+  padding-left: 10px;
   border-left: 1px solid rgba(148, 163, 184, 0.18);
 }
 
@@ -396,12 +413,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .usage-toggle-label {
   color: var(--muted-strong);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -472,9 +489,9 @@ body {
 }
 
 .section-copy {
-  margin-top: 3px;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .settings-trigger {
@@ -483,9 +500,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 14px 16px;
+  padding: 11px 15px;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--text);
   font-size: 13px;
@@ -504,8 +521,8 @@ body {
 
 .settings-summary-copy,
 .settings-panel-copy {
-  margin-top: 3px;
-  font-size: 12px;
+  margin-top: 2px;
+  font-size: 11px;
   font-weight: 400;
   color: var(--muted);
 }
@@ -608,7 +625,7 @@ body {
 .pills-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
 }
 
 .style-pill,
@@ -616,11 +633,11 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0 12px;
+  min-height: 31px;
+  padding: 0 11px;
   border-radius: 999px;
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -646,14 +663,16 @@ body {
 }
 
 .style-pill-add {
-  border: 1px dashed rgba(148, 163, 184, 0.5);
-  background: transparent;
-  color: var(--muted-strong);
+  border: 1px dashed rgba(148, 163, 184, 0.34);
+  background: rgba(248, 250, 252, 0.42);
+  color: #7b8699;
 }
 
 .style-pill-add:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(148, 163, 184, 0.46);
+  color: var(--muted-strong);
 }
 
 .status-message {
