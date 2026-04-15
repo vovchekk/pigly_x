@@ -3,14 +3,14 @@
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-<div x-data="authPage()" x-init="init()" class="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+<div x-data="authPage()" x-init="init()" data-auth-intent="{{ auth_intent }}" data-auth-plan="{{ auth_plan }}" class="mx-auto flex min-h-screen max-w-4xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
     <div class="w-full max-w-2xl">
-        <a href="{% url 'core:landing' %}" class="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-slate-400 dark:hover:text-white">
+        <a href="{{ back_url }}" class="mb-5 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-slate-950 dark:text-slate-400 dark:hover:text-white">
             <span>&larr;</span>
             <span data-i18n="backToLanding">Back to landing</span>
         </a>
         <div class="glass-card rounded-[2rem] p-6 sm:p-8">
-            {% include "users/partials/login_form.html" with google_auth_enabled=google_auth_enabled %}
+            {% include "users/partials/login_form.html" with google_auth_enabled=google_auth_enabled auth_next=auth_next %}
         </div>
     </div>
 </div>
@@ -24,19 +24,23 @@ function authPage() {
         copy: {
             ru: {
                 pageTitle: 'Вход через Google',
-                backToLanding: 'Назад на главную',
+                backToLanding: 'Назад на лендинг',
                 authCardTitle: 'Войти на сайт через Google',
-                authCardLead: 'Это вход на сайт Pigly. Здесь будут храниться твои стили и настройки для расширения.',
+                authCardLead: 'Это вход на сайт Pigly. Здесь будут храниться твои стили, история и настройки для расширения.',
+                authCheckoutTitle: 'Войди через Google, чтобы продолжить оплату',
+                authCheckoutLead: 'Сначала нужен аккаунт Pigly. После входа ты вернёшься к оформлению тарифа {plan}.',
                 googleAuthCta: 'Продолжить через Google',
-                googleLoginDisabled: 'Google login появится после добавления client id и secret.'
+                googleLoginDisabled: 'Google login появится после добавления client id и secret.',
             },
             en: {
                 pageTitle: 'Continue with Google',
                 backToLanding: 'Back to landing',
                 authCardTitle: 'Sign in to the website with Google',
-                authCardLead: 'This signs you in to the Pigly website. Your style preferences and extension settings are stored here.',
+                authCardLead: 'This signs you in to the Pigly website. Your history, billing, and extension settings are stored here.',
+                authCheckoutTitle: 'Continue with Google to finish checkout',
+                authCheckoutLead: 'Pigly needs an account first. After sign in, you will return to the {plan} checkout flow.',
                 googleAuthCta: 'Continue with Google',
-                googleLoginDisabled: 'Google login will appear after adding the client id and secret.'
+                googleLoginDisabled: 'Google login will appear after adding the client id and secret.',
             }
         },
         init() {
@@ -49,8 +53,20 @@ function authPage() {
             this.lang = sourceLang === 'ru' ? 'ru' : 'en';
             this.applyLanguage();
         },
+        replaceVars(template, values) {
+            return Object.entries(values).reduce((result, [key, value]) => result.replace(`{${key}}`, value), template);
+        },
         applyLanguage() {
-            const values = this.copy[this.lang];
+            const values = { ...this.copy[this.lang] };
+            const authIntent = this.$root.dataset.authIntent || '';
+            const authPlan = this.$root.dataset.authPlan || '';
+            if (authIntent === 'checkout' && authPlan) {
+                const planLabel = authPlan === 'supporter'
+                    ? (this.lang === 'ru' ? 'Supporter' : 'Supporter')
+                    : 'Pro';
+                values.authCardTitle = values.authCheckoutTitle;
+                values.authCardLead = this.replaceVars(values.authCheckoutLead, { plan: planLabel });
+            }
             document.documentElement.lang = this.lang;
             document.title = values.pageTitle || document.title;
             document.querySelectorAll('[data-i18n]').forEach((node) => {

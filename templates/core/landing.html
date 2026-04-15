@@ -76,13 +76,17 @@
                 </button>
 
                 <!-- Mobile menu toggle -->
-                <button type="button" @click="mobileMenu = !mobileMenu" :aria-label="mobileMenu ? 'Close navigation menu' : 'Open navigation menu'" class="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                <button type="button" @click="toggleMobileMenu()" :aria-label="mobileMenu ? 'Close navigation menu' : 'Open navigation menu'" class="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
                     <svg x-show="!mobileMenu" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                     <svg x-show="mobileMenu" x-cloak class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
 
                 <!-- Desktop Install CTA -->
+                {% if extension_install_ready %}
                 <a href="{{ extension_install_url }}" class="hidden md:inline-flex btn-amber text-sm !py-2 !px-4" data-i18n="navInstall">Install →</a>
+                {% else %}
+                <button type="button" @click="openInstallPrompt()" class="hidden md:inline-flex btn-amber text-sm !py-2 !px-4" data-i18n="navInstall">Install →</button>
+                {% endif %}
             </div>
         </div>
 
@@ -94,16 +98,20 @@
              x-transition:leave="transition ease-in duration-150"
              x-transition:leave-start="opacity-100 translate-y-0"
              x-transition:leave-end="opacity-0 -translate-y-2"
-             class="md:hidden fixed inset-x-0 top-16 bottom-0 z-40 border-t border-gray-100 dark:border-neutral-800 bg-white/96 dark:bg-neutral-950/96 nav-blur shadow-[0_20px_60px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-            <div class="px-4 py-4 pb-6 flex h-full flex-col gap-1 overflow-y-auto">
+             class="md:hidden fixed inset-x-0 top-16 bottom-0 z-40 border-t border-gray-100 bg-white dark:border-neutral-800 dark:bg-neutral-950 shadow-[0_20px_60px_rgba(15,23,42,0.12)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+            <div class="px-4 py-5 pb-6 flex h-full flex-col gap-2 overflow-y-auto">
                 {% if request.user.is_authenticated %}
-                <a href="{% url 'core:dashboard' %}" @click="mobileMenu = false" class="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navDashboard">Dashboard</a>
+                <a href="{% url 'core:dashboard' %}" @click="closeMobileMenu()" class="rounded-xl px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navDashboard">Dashboard</a>
                 {% endif %}
-                <a href="#features" @click="mobileMenu = false" class="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navFeatures">Features</a>
-                <a href="#how-it-works" @click="mobileMenu = false" class="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navHow">How it works</a>
-                <a href="#pricing" @click="mobileMenu = false" class="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navPricing">Pricing</a>
-                <a href="#faq" @click="mobileMenu = false" class="rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navFaq">FAQ</a>
-                <a href="{{ extension_install_url }}" class="mt-2 btn-amber text-sm text-center" data-i18n="navInstall">Install →</a>
+                <a href="#features" @click="closeMobileMenu()" class="rounded-xl px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navFeatures">Features</a>
+                <a href="#how-it-works" @click="closeMobileMenu()" class="rounded-xl px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navHow">How it works</a>
+                <a href="#pricing" @click="closeMobileMenu()" class="rounded-xl px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navPricing">Pricing</a>
+                <a href="#faq" @click="closeMobileMenu()" class="rounded-xl px-3 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-neutral-800 transition" data-i18n="navFaq">FAQ</a>
+                {% if extension_install_ready %}
+                <a href="{{ extension_install_url }}" class="mt-3 btn-amber text-sm text-center" data-i18n="navInstall">Install →</a>
+                {% else %}
+                <button type="button" @click="openInstallPrompt(); closeMobileMenu()" class="mt-3 btn-amber text-sm text-center" data-i18n="navInstall">Install →</button>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -112,7 +120,7 @@
     <main class="relative z-[1] pt-16">
 
         <!-- =================== HERO =================== -->
-        <section class="relative mx-auto max-w-6xl px-4 sm:px-6 pt-16 pb-64 lg:min-h-[calc(100vh-2rem)] lg:pt-24 lg:pb-80">
+        <section class="relative mx-auto max-w-6xl px-4 sm:px-6 pt-16 pb-24 lg:min-h-[calc(100vh-6rem)] lg:pt-24 lg:pb-28">
             <div class="grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center">
                 <!-- Text column -->
                 <div>
@@ -128,17 +136,17 @@
                     </p>
 
                     <div class="mt-8 flex flex-wrap gap-3 sm:gap-4">
+                        {% if extension_install_ready %}
                         <a href="{{ extension_install_url }}" class="btn-amber text-base" data-i18n="heroBtnInstall">Install for free →</a>
+                        {% else %}
+                        <button type="button" @click="openInstallPrompt()" class="btn-amber text-base" data-i18n="heroBtnInstall">Install for free →</button>
+                        {% endif %}
                         <a href="#how-it-works" class="btn-outline text-base" data-i18n="heroBtnHow">How it works</a>
                     </div>
 
                     <div class="mt-7 flex flex-wrap gap-2">
-                        <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700">
-                            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C6.475 0 2 4.475 2 10c0 4.1 2.475 7.625 6.025 9.15L12 24l3.975-4.85C19.525 17.625 22 14.1 22 10c0-5.525-4.475-10-10-10z" opacity=".15"/><circle cx="12" cy="10" r="4" fill="currentColor"/></svg>
-                            Chrome</span>
-                        <span class="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700">Edge</span>
-                        <span class="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700">Opera</span>
-                        <span class="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700">Firefox</span>
+                        <span class="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700" data-i18n="heroChipReply">Reply inside X</span>
+                        <span class="inline-flex items-center rounded-full bg-white px-3.5 py-1.5 text-xs font-medium text-gray-500 ring-1 ring-gray-200/80 dark:bg-neutral-900 dark:text-gray-400 dark:ring-neutral-700" data-i18n="heroChipShorten">Shorten posts fast</span>
                     </div>
 
                 </div>
@@ -204,7 +212,7 @@
                  x-transition:leave="transition ease-in duration-150"
                  x-transition:leave-start="opacity-100 translate-y-0"
                  x-transition:leave-end="opacity-0 -translate-y-2"
-                 class="absolute bottom-12 left-1/2 z-10 -translate-x-1/2">
+                 class="absolute bottom-5 left-1/2 z-10 -translate-x-1/2">
                 <a href="#features"
                    class="group inline-flex flex-col items-center gap-2 text-gray-400 transition hover:text-gray-700 dark:hover:text-gray-200">
                     <span class="text-[10px] font-semibold uppercase tracking-[0.28em]" data-i18n="heroScroll">Scroll down</span>
@@ -417,6 +425,45 @@
             </div>
         </section>
 
+        <div x-show="installPromptOpen" x-cloak class="fixed inset-0 z-[87] flex items-center justify-center px-4">
+            <div class="absolute inset-0 bg-slate-950/45 backdrop-blur-sm" @click="closeInstallPrompt()"></div>
+            <div class="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_35px_80px_rgba(15,23,42,0.18)] dark:border-slate-800 dark:bg-slate-900">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black leading-tight text-slate-950 dark:text-white" data-i18n="installPromptTitle">Extension link is almost ready</h2>
+                        <p class="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400" data-i18n="installPromptLead">The public install page is being finalized. The button will lead straight to it as soon as it is connected.</p>
+                    </div>
+                    <button type="button" @click="closeInstallPrompt()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                        <svg class="h-5 w-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300" data-i18n="installPromptHint">For now, pricing and account flow are already available on the site.</div>
+                <div class="mt-6">
+                    <button type="button" @click="closeInstallPrompt()" class="inline-flex w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300" data-i18n="installPromptClose">Okay</button>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="authPromptOpen" x-cloak class="fixed inset-0 z-[88] flex items-center justify-center px-4">
+            <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" @click="closeAuthPrompt()"></div>
+            <div class="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_35px_80px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-black leading-tight text-slate-950 dark:text-white" x-text="currentCopy('authPromptTitle')"></h2>
+                        <p class="mt-3 text-sm leading-6 text-slate-500 dark:text-slate-400" x-text="authPromptLead"></p>
+                    </div>
+                    <button type="button" @click="closeAuthPrompt()" class="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                        <svg class="h-5 w-5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300" data-i18n="authPromptHint">Your selected plan will stay queued after sign in.</div>
+                <div class="mt-6 flex flex-col gap-3">
+                    <a :href="authPromptHref" class="inline-flex w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300" data-i18n="authPromptCta">Continue with Google</a>
+                    <button type="button" @click="closeAuthPrompt()" class="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" data-i18n="authPromptLater">Maybe later</button>
+                </div>
+            </div>
+        </div>
+
         <div x-show="checkoutOpen" x-cloak class="fixed inset-0 z-[90] flex items-center justify-center px-4">
             <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" @click="closeCheckout()"></div>
             <div class="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-[0_35px_80px_rgba(15,23,42,0.22)] dark:border-slate-800 dark:bg-slate-900">
@@ -542,7 +589,11 @@
                 <div class="relative">
                     <h2 class="text-3xl sm:text-4xl font-bold tracking-tight text-white" data-i18n="ctaTitle">Try Pigly in your real workflow</h2>
                     <p class="mt-4 mx-auto max-w-xl text-base text-gray-300" data-i18n="ctaLead">Install the extension and start working faster on X/Twitter in your first session.</p>
+                    {% if extension_install_ready %}
                     <a href="{{ extension_install_url }}" class="mt-8 inline-flex items-center justify-center rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-gray-900 transition hover:bg-gray-100 hover:shadow-lg" data-i18n="ctaBtn">Install extension →</a>
+                    {% else %}
+                    <button type="button" @click="openInstallPrompt()" class="mt-8 inline-flex items-center justify-center rounded-xl bg-white px-7 py-3.5 text-base font-semibold text-gray-900 transition hover:bg-gray-100 hover:shadow-lg" data-i18n="ctaBtn">Install extension →</button>
+                    {% endif %}
                 </div>
             </div>
         </section>
@@ -575,6 +626,9 @@ function landingPage() {
         scrolled: false,
         mobileMenu: false,
         heroScrollLocked: false,
+        installPromptOpen: false,
+        authPromptOpen: false,
+        authPromptPlan: 'pro',
         checkoutOpen: false,
         checkoutLoading: false,
         checkoutPlan: 'pro',
@@ -597,6 +651,8 @@ function landingPage() {
                 heroLead: 'Pigly работает прямо внутри X/Twitter - пишет ответы, сокращает посты и убирает лишние шаги из процесса.',
                 heroBtnInstall: 'Установить бесплатно →',
                 heroBtnHow: 'Как это работает',
+                heroChipReply: 'Ответы прямо в X',
+                heroChipShorten: 'Быстрое сокращение постов',
                 heroScroll: 'Листни вниз',
                 demoTag: 'Live demo',
                 demoHint: 'Без копипаста',
@@ -657,6 +713,16 @@ function landingPage() {
                 planSupporterFeat2: 'История платежей в дашборде',
                 planSupporterFeat3: 'Поддержка развития Pigly 🙏',
                 planSupporterBtn: 'Стать спонсором',
+                installPromptTitle: 'Ссылка на расширение уже почти готова',
+                installPromptLead: 'Публичную страницу установки сейчас доделываем. Как только подключим ссылку, кнопка сразу начнёт вести прямо на неё.',
+                installPromptHint: 'Пока на сайте уже доступны тарифы, аккаунт и оплата.',
+                installPromptClose: 'Понял',
+                authPromptTitle: 'Войди через Google, чтобы продолжить',
+                authPromptLeadPro: 'Сначала нужен аккаунт Pigly. После входа ты сразу вернёшься к оформлению тарифа Pro.',
+                authPromptLeadSupporter: 'Сначала нужен аккаунт Pigly. После входа ты сразу вернёшься к оформлению тарифа Supporter.',
+                authPromptHint: 'Выбранный тариф сохранится после входа.',
+                authPromptCta: 'Продолжить через Google',
+                authPromptLater: 'Позже',
                 checkoutPlanLabelPro: 'Тариф Pro',
                 checkoutPlanLabelSupporter: 'Тариф Supporter',
                 checkoutPricePro: '$2 в месяц',
@@ -708,6 +774,8 @@ function landingPage() {
                 heroLead: 'Pigly works directly inside X/Twitter - writes replies, shortens posts, and removes extra steps from your workflow.',
                 heroBtnInstall: 'Install for free →',
                 heroBtnHow: 'How it works',
+                heroChipReply: 'Reply inside X',
+                heroChipShorten: 'Shorten posts fast',
                 heroScroll: 'Scroll down',
                 demoTag: 'Live demo',
                 demoHint: 'No copy-paste',
@@ -768,6 +836,16 @@ function landingPage() {
                 planSupporterFeat2: 'Payment history in your dashboard',
                 planSupporterFeat3: 'Support Pigly development 🙏',
                 planSupporterBtn: 'Become a supporter',
+                installPromptTitle: 'Extension link is almost ready',
+                installPromptLead: 'The public install page is being finalized. The button will lead straight to it as soon as it is connected.',
+                installPromptHint: 'For now, pricing, account flow, and payments are already available on the site.',
+                installPromptClose: 'Okay',
+                authPromptTitle: 'Continue with Google to keep going',
+                authPromptLeadPro: 'Pigly needs an account first. After sign in, you will return to the Pro checkout flow.',
+                authPromptLeadSupporter: 'Pigly needs an account first. After sign in, you will return to the Supporter checkout flow.',
+                authPromptHint: 'Your selected plan will stay queued after sign in.',
+                authPromptCta: 'Continue with Google',
+                authPromptLater: 'Maybe later',
                 checkoutPlanLabelPro: 'Pro plan',
                 checkoutPlanLabelSupporter: 'Supporter plan',
                 checkoutPricePro: '$2 per month',
@@ -854,6 +932,30 @@ function landingPage() {
             window.localStorage.setItem('pigly_theme', this.theme);
             this.applyTheme();
         },
+        openInstallPrompt() {
+            this.installPromptOpen = true;
+            this.lockPageScroll();
+        },
+        closeInstallPrompt() {
+            this.installPromptOpen = false;
+            if (!this.checkoutOpen && !this.authPromptOpen && !this.mobileMenu) {
+                this.unlockPageScroll();
+            }
+        },
+        toggleMobileMenu() {
+            this.mobileMenu = !this.mobileMenu;
+            if (this.mobileMenu) {
+                this.lockPageScroll();
+            } else if (!this.checkoutOpen && !this.authPromptOpen && !this.installPromptOpen) {
+                this.unlockPageScroll();
+            }
+        },
+        closeMobileMenu() {
+            this.mobileMenu = false;
+            if (!this.checkoutOpen && !this.authPromptOpen && !this.installPromptOpen) {
+                this.unlockPageScroll();
+            }
+        },
         applyTheme() {
             document.documentElement.classList.toggle('dark', this.theme === 'dark');
         },
@@ -886,11 +988,25 @@ function landingPage() {
         resetCheckoutState() {
             this.setCheckoutStatus('', 'neutral');
         },
+        openAuthPrompt(plan) {
+            this.authPromptPlan = plan;
+            this.authPromptOpen = true;
+            this.closeMobileMenu();
+            this.lockPageScroll();
+        },
+        closeAuthPrompt() {
+            this.authPromptOpen = false;
+            if (!this.checkoutOpen && !this.mobileMenu && !this.installPromptOpen) {
+                this.unlockPageScroll();
+            }
+        },
         startCheckout(plan) {
             if (!{{ request.user.is_authenticated|yesno:"true,false" }}) {
-                window.location.href = "{% url 'users:register' %}";
+                this.openAuthPrompt(plan);
                 return;
             }
+            this.closeAuthPrompt();
+            this.closeMobileMenu();
             this.checkoutPlan = plan;
             this.checkoutOpen = true;
             this.lockPageScroll();
@@ -900,14 +1016,24 @@ function landingPage() {
         closeCheckout() {
             this.checkoutOpen = false;
             this.checkoutLoading = false;
-            this.unlockPageScroll();
+            if (!this.authPromptOpen && !this.mobileMenu && !this.installPromptOpen) {
+                this.unlockPageScroll();
+            }
             this.setCheckoutStatus('', 'neutral');
         },
         syncPaymentBannerFromUrl() {
             const params = new URLSearchParams(window.location.search);
             const payment = params.get('payment');
+            const checkout = params.get('checkout');
             if (payment === 'success') {
                 this.checkoutBanner = this.currentCopy('checkoutPaid');
+            }
+            if (checkout && {{ request.user.is_authenticated|yesno:"true,false" }} && ['pro', 'supporter'].includes(checkout)) {
+                this.startCheckout(checkout);
+                const pricing = document.getElementById('pricing');
+                if (pricing) {
+                    pricing.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
             }
         },
         setWalletNetwork(network) {
@@ -928,6 +1054,15 @@ function landingPage() {
             return this.checkoutPlan === 'supporter'
                 ? this.currentCopy('checkoutPriceSupporter')
                 : this.currentCopy('checkoutPricePro');
+        },
+        get authPromptLead() {
+            return this.authPromptPlan === 'supporter'
+                ? this.currentCopy('authPromptLeadSupporter')
+                : this.currentCopy('authPromptLeadPro');
+        },
+        get authPromptHref() {
+            const next = encodeURIComponent(`/?checkout=${this.authPromptPlan}#pricing`);
+            return `{% url 'users:register' %}?intent=checkout&plan=${this.authPromptPlan}&next=${next}`;
         },
         getCsrfToken() {
             const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);

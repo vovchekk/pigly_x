@@ -220,12 +220,12 @@ body {
 
 .user-card {
   position: relative;
-  min-height: 112px;
+  min-height: 86px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.75);
   border-radius: 22px;
   background-color: #fff;
-  background-position: right center;
+  background-position: right -4px;
   background-size: cover;
   background-repeat: no-repeat;
   box-shadow: var(--shadow);
@@ -243,8 +243,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 16px;
+  gap: 5px;
+  padding: 11px 13px;
 }
 
 .user-card-topline {
@@ -256,7 +256,7 @@ body {
 }
 
 .user-card-kicker {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -272,30 +272,30 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .plan-expires {
   display: inline-block;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .plan-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 54px;
-  height: 24px;
-  padding: 0 10px;
+  min-width: 48px;
+  height: 22px;
+  padding: 0 9px;
   border-radius: 999px;
   background: #eefbf5;
   border: 1px solid #c8f0de;
   color: #0f9f6e;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -316,7 +316,7 @@ body {
 .popup-free-cta {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .popup-support-cta {
@@ -328,7 +328,7 @@ body {
 }
 
 .popup-free-text {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.25;
@@ -338,12 +338,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 30px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 11px;
   border-radius: 999px;
   background: linear-gradient(135deg, #ffb347, #ff9500);
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   text-decoration: none;
   box-shadow: 0 10px 18px rgba(245, 158, 11, 0.28);

@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from django.middleware.csrf import get_token
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from allauth.socialaccount.models import SocialAccount
 
@@ -17,13 +18,25 @@ from assistant.utils import parse_request_data
 from django.views.decorators.csrf import csrf_exempt
 
 
+def _safe_next_url(request):
+    next_url = (request.GET.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return next_url
+    return ""
+
+
 def render_google_auth_page(request, page_title):
+    auth_next = _safe_next_url(request)
     return render(
         request,
         "users/auth_page.html",
         {
             "page_title": page_title,
             "google_auth_enabled": settings.GOOGLE_AUTH_ENABLED,
+            "auth_next": auth_next,
+            "auth_intent": (request.GET.get("intent") or "").strip(),
+            "auth_plan": (request.GET.get("plan") or "").strip(),
+            "back_url": auth_next or reverse("core:landing"),
         },
     )
 
@@ -39,7 +52,7 @@ def render_landing_with_forms(request, auth_mode, login_form=None, register_form
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if request.user.is_authenticated:
-        return redirect("core:profile")
+        return redirect(_safe_next_url(request) or "core:dashboard")
 
     if request.method == "POST":
         form = CustomAuthenticationForm(request.POST or None)
@@ -55,7 +68,7 @@ def login_view(request):
 @require_http_methods(["GET", "POST"])
 def register_view(request):
     if request.user.is_authenticated:
-        return redirect("core:profile")
+        return redirect(_safe_next_url(request) or "core:dashboard")
 
     if request.method == "POST":
         form = CustomUserCreationForm(request.POST or None)
@@ -161,6 +174,9 @@ def profile_update_view(request):
             variant_count = None
         if variant_count in dict(profile.VARIANT_COUNT_CHOICES):
             profile.preferred_variant_count = variant_count
+
+    if "translate_to_language" in data and data["translate_to_language"] in dict(profile.TRANSLATE_CHOICES):
+        profile.preferred_translate_language = data["translate_to_language"]
         
     if "comment_length" in data and data["comment_length"] in dict(profile.LENGTH_CHOICES):
         profile.preferred_comment_length = data["comment_length"]
@@ -180,6 +196,7 @@ def profile_update_view(request):
     profile.save(update_fields=[
         "preferred_comment_styles", 
         "preferred_variant_count",
+        "preferred_translate_language",
         "preferred_comment_length", 
         "preferred_emoji_mode",
         "preferred_dash_style",

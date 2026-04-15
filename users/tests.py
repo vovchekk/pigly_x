@@ -2,11 +2,11 @@ import json
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from users.adapters import PiglySocialAccountAdapter
+from users.adapters import PiglyAccountAdapter, PiglySocialAccountAdapter
 from users.billing import nowpayments_signature
 from users.models import ExtensionAccessToken, PromoCode, PromoCodeRedemption, Purchase, User
 
@@ -122,6 +122,13 @@ class PublicAuthUiTests(TestCase):
         self.assertNotContains(response, "password_confirm", html=False)
         self.assertNotContains(response, 'type="password"', html=False)
 
+    def test_register_page_preserves_checkout_next_for_google_login(self):
+        response = self.client.get(f"{reverse('users:register')}?intent=checkout&plan=pro&next=/%3Fcheckout%3Dpro%23pricing")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "next=%2F%3Fcheckout%3Dpro%23pricing")
+        self.assertContains(response, "authCheckoutLead")
+
 
 class ExtensionSessionTests(TestCase):
     def setUp(self):
@@ -155,6 +162,9 @@ class ExtensionSessionTests(TestCase):
 
 
 class GoogleAdapterTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
     def test_existing_user_is_connected_by_email(self):
         user = User.objects.create_user(
             email="google@example.com",
@@ -170,6 +180,13 @@ class GoogleAdapterTests(TestCase):
         PiglySocialAccountAdapter().pre_social_login(request=None, sociallogin=sociallogin)
 
         sociallogin.connect.assert_called_once_with(None, user)
+
+    def test_account_adapter_prefers_safe_next_redirect(self):
+        request = self.factory.get("/accounts/google/login/callback/", {"next": "/?checkout=pro#pricing"}, HTTP_HOST="testserver")
+
+        redirect_url = PiglyAccountAdapter().get_login_redirect_url(request)
+
+        self.assertEqual(redirect_url, "/?checkout=pro#pricing")
 
 
 class NowPaymentsCheckoutTests(TestCase):

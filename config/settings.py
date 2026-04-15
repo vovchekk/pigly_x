@@ -145,6 +145,8 @@ SITE_NAME = "Pigly"
 SITE_URL = config("SITE_URL", default="http://127.0.0.1:8000")
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Pigly <no-reply@pigly.app>")
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+GEMINI_API_KEY = config("GEMINI_API_KEY", default="")
+GEMINI_MODEL = config("GEMINI_MODEL", default="gemini-2.5-flash-lite")
 
 EXTENSION_INSTALL_URL = config("EXTENSION_INSTALL_URL", default="#")
 EXTENSION_TOKEN_PREFIX = "pigly_"

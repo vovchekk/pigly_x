@@ -21,6 +21,12 @@
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["images/comment.png", "images/lupa.png"],
+      "matches": ["https://x.com/*", "https://twitter.com/*"]
+    }
+  ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {

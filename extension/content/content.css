@@ -1,57 +1,141 @@
-/* ── Pigly Content Script Styles ── */
-
-.pigly-btn-wrapper {
+.pigly-inline-wrapper,
+.pigly-composer-wrapper {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  margin-left: 8px; /* Offset from X's last button */
   flex-shrink: 0;
 }
 
-.pigly-action-btn {
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  width: 34.75px; 
-  height: 34.75px;
-  display: flex;
+.pigly-inline-wrapper {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.pigly-inline-trigger,
+.pigly-composer-trigger {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
   cursor: pointer;
-  transition: background-color 0.2s ease;
-  color: #71767b; /* X's default icon color */
+  font: inherit;
+  line-height: 1;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.pigly-inline-trigger {
+  margin-left: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  min-height: 22px;
+}
+
+.pigly-composer-trigger {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: auto;
+}
+
+.pigly-composer-wrapper {
+  margin-left: 8px;
+}
+
+.pigly-composer-wrapper-below {
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin: 8px 0 0;
+}
+
+.pigly-reply-root {
   position: relative;
-  outline: none;
 }
 
-.pigly-action-btn:hover {
-  background-color: rgba(99, 102, 241, 0.1);
-  color: #6366f1;
+.pigly-composer-wrapper-top {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  margin-left: 0;
+  z-index: 2;
 }
 
-.pigly-action-btn svg {
-  width: 1.25em;
-  height: 1.25em;
+.pigly-composer-wrapper-top .pigly-composer-trigger,
+.pigly-composer-trigger {
+  min-height: 24px;
+}
+
+.pigly-inline-trigger:hover,
+.pigly-composer-trigger:hover {
+  opacity: 0.8;
+  transform: translateY(-1px);
+}
+
+.pigly-trigger-icon,
+.pigly-inline-trigger svg,
+.pigly-composer-trigger svg,
+.pigly-brand svg,
+.pigly-panel-close svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.pigly-trigger-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.pigly-composer-trigger .pigly-trigger-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.pigly-inline-trigger svg,
+.pigly-composer-trigger svg,
+.pigly-brand svg,
+.pigly-panel-close svg {
   fill: currentColor;
 }
 
-/* ── Panel ── */
 .pigly-panel {
   position: absolute;
-  top: 100%;
-  left: -20px;
-  width: 320px;
+  top: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  width: 296px;
+  max-width: min(296px, calc(100vw - 20px));
   background: #ffffff;
-  border: 1px solid #eff3f4;
+  border: 1px solid #e4e9ee;
   border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  padding: 12px;
-  z-index: 10000; /* Must be above X's overlays */
-  margin-top: 8px;
-  cursor: default;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  padding: 10px;
+  z-index: 10000;
   display: none;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: #0f1419;
+  cursor: default;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.pigly-panel-floating {
+  position: fixed;
+  z-index: 2147483000;
+}
+
+.pigly-panel.pigly-panel-left:not(.pigly-panel-floating) {
+  right: 0;
+  left: auto;
+}
+
+.pigly-panel.pigly-panel-up:not(.pigly-panel-floating) {
+  top: auto;
+  bottom: calc(100% + 8px);
 }
 
 .pigly-panel.show {
@@ -59,161 +143,291 @@
   animation: pigly-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Dark mode adjustment for X */
-@media (prefers-color-scheme: dark) {
-  .pigly-panel {
-    background: #000000;
-    border-color: #2f3336;
-    color: #e7e9ea;
-    box-shadow: 0 8px 32px rgba(255, 255, 255, 0.05);
-  }
-}
-
 .pigly-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-  padding: 0 4px;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pigly-panel-shorten .pigly-panel-header {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.pigly-panel-shorten .pigly-brand {
+  display: none;
+}
+
+.pigly-panel-shorten .pigly-panel-close {
+  margin: 0;
+  padding: 2px;
+}
+
+.pigly-panel:not(.pigly-panel-shorten) .pigly-brand {
+  display: none;
+}
+
+.pigly-panel:not(.pigly-panel-shorten) .pigly-panel-header {
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.pigly-panel-refresh {
+  border: 1px solid #d5deea;
+  background: #f8fbff;
+  color: #4f46e5;
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pigly-panel-refresh:hover {
+  background: #eef4ff;
+}
+
+.pigly-panel-refresh svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.pigly-panel-refresh.is-loading svg {
+  animation: pigly-spin 0.7s linear infinite;
+}
+
+.pigly-panel-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .pigly-brand {
-  font-weight: 700;
-  font-size: 15px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.pigly-brand svg {
-  fill: #6366f1;
-  width: 18px;
-  height: 18px;
+  color: #4f46e5;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .pigly-panel-close {
-  background: transparent;
   border: none;
-  cursor: pointer;
+  background: transparent;
   color: #536471;
-  padding: 4px;
-  border-radius: 50%;
-  display: flex;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pigly-panel-close:hover {
-  background: rgba(0, 0, 0, 0.08);
-}
-@media (prefers-color-scheme: dark) {
-  .pigly-panel-close { color: #71767b; }
-  .pigly-panel-close:hover { background: rgba(255, 255, 255, 0.1); }
+  background: rgba(15, 20, 25, 0.08);
 }
 
-/* ── Content States ── */
 .pigly-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px 0;
+  gap: 10px;
+  padding: 24px 0 20px;
   color: #536471;
   font-size: 14px;
-}
-@media (prefers-color-scheme: dark) {
-  .pigly-loading { color: #71767b; }
 }
 
 .pigly-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #eff3f4;
-  border-top-color: #6366f1;
   border-radius: 50%;
+  border: 2px solid #e4e9ee;
+  border-top-color: #4f46e5;
   animation: pigly-spin 0.6s linear infinite;
-  margin-bottom: 10px;
-}
-@media (prefers-color-scheme: dark) {
-  .pigly-spinner { border-color: #2f3336; border-top-color: #8b5cf6; }
 }
 
 .pigly-error {
-  color: #f4212e;
+  border-radius: 14px;
+  background: rgba(244, 33, 46, 0.08);
+  color: #c62828;
+  padding: 12px;
   font-size: 14px;
-  padding: 10px;
-  background: rgba(244, 33, 46, 0.1);
-  border-radius: 12px;
+  line-height: 1.4;
 }
 
-/* ── Variants ── */
+.pigly-error-btn {
+  width: 100%;
+  margin-top: 10px;
+}
+
 .pigly-variant-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
-.pigly-variant {
-  border: 1px solid #eff3f4;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #ffffff;
-  transition: background-color 0.15s;
+.pigly-variant,
+.pigly-compact-result {
+  border: 1px solid #e4e9ee;
+  border-radius: 11px;
+  background: #fbfdff;
+  padding: 8px;
 }
-@media (prefers-color-scheme: dark) {
-  .pigly-variant {
-    background: #000000;
-    border-color: #2f3336;
-  }
-  .pigly-variant:hover { background: rgba(255, 255, 255, 0.03); }
-}
-.pigly-variant:hover { background: #f7f9f9; }
 
+.pigly-result-copy,
 .pigly-variant-text {
-  font-size: 14px;
-  line-height: 20px;
-  word-wrap: break-word;
-  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #0f1419;
+  white-space: pre-wrap;
+}
+
+.pigly-variant-text-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.pigly-result-copy-plain {
+  padding: 2px 34px 2px 2px;
 }
 
 .pigly-variant-actions {
   display: flex;
-  gap: 8px;
   justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .pigly-btn {
-  background: #0f1419;
-  color: #ffffff;
   border: none;
-  padding: 6px 12px;
-  border-radius: 9999px;
+  border-radius: 999px;
+  min-height: 30px;
+  padding: 5px 10px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 11px;
   font-weight: 700;
-  font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.18s ease;
 }
-.pigly-btn:hover { background: #272c30; }
 
-@media (prefers-color-scheme: dark) {
-  .pigly-btn { background: #eff3f4; color: #0f1419; }
-  .pigly-btn:hover { background: #d7dbdc; }
+.pigly-btn:hover {
+  background: #1f2937;
 }
 
 .pigly-btn-outline {
   background: transparent;
-  color: #0f1419;
-  border: 1px solid #cfd9de;
+  color: #111827;
+  border: 1px solid #c9d2da;
 }
-.pigly-btn-outline:hover { background: rgba(15, 20, 25, 0.1); }
+
+.pigly-btn-outline:hover {
+  background: rgba(15, 20, 25, 0.06);
+}
 
 @media (prefers-color-scheme: dark) {
-  .pigly-btn-outline { color: #eff3f4; border-color: #536471; }
-  .pigly-btn-outline:hover { background: rgba(255, 255, 255, 0.1); }
+  .pigly-inline-trigger,
+  .pigly-composer-trigger {
+    background: transparent;
+    color: inherit;
+  }
+
+  .pigly-inline-trigger:hover,
+  .pigly-composer-trigger:hover {
+    opacity: 0.82;
+  }
+
+  .pigly-panel {
+    background: #0f1115;
+    border-color: #2f3336;
+    color: #e7e9ea;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .pigly-panel-close {
+    color: #94a3b8;
+  }
+
+  .pigly-panel-close:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .pigly-panel-refresh {
+    background: rgba(129, 140, 248, 0.12);
+    border-color: rgba(129, 140, 248, 0.28);
+    color: #c7d2fe;
+  }
+
+  .pigly-panel-refresh:hover {
+    background: rgba(129, 140, 248, 0.2);
+  }
+
+  .pigly-loading {
+    color: #94a3b8;
+  }
+
+  .pigly-spinner {
+    border-color: #2f3336;
+    border-top-color: #818cf8;
+  }
+
+  .pigly-variant,
+  .pigly-compact-result {
+    background: #11151b;
+    border-color: #2f3336;
+  }
+
+  .pigly-result-copy,
+  .pigly-variant-text {
+    color: #f5f7fa;
+  }
+
+  .pigly-btn {
+    background: #e7e9ea;
+    color: #0f1419;
+  }
+
+  .pigly-btn:hover {
+    background: #d5d8db;
+  }
+
+  .pigly-btn-outline {
+    background: transparent;
+    color: #f5f7fa;
+    border-color: #536471;
+  }
+
+  .pigly-btn-outline:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 }
 
 @keyframes pigly-pop {
-  from { opacity: 0; transform: scale(0.95) translateY(-5px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
+
 @keyframes pigly-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }

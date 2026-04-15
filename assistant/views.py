@@ -44,9 +44,20 @@ def shorten_view(request):
     if not source_text:
         return json_error("Source text is required.", code="missing_source_text")
 
-    tone = pick_first(data, "tone", default="friendly")
-    language = pick_first(data, "language", "locale")
-    variant_count = coerce_int(pick_first(data, "variant_count", "count"), default=3, minimum=1, maximum=5)
+    profile = getattr(request.user, "profile", None)
+    tone = pick_first(data, "tone", default=getattr(profile, "preferred_tone", "friendly"))
+    language = pick_first(
+        data,
+        "language",
+        "locale",
+        default=getattr(profile, "preferred_translate_language", "") or getattr(profile, "preferred_language", ""),
+    )
+    variant_count = coerce_int(
+        pick_first(data, "variant_count", "count"),
+        default=1,
+        minimum=1,
+        maximum=3,
+    )
     target_length = coerce_int(pick_first(data, "target_length", "max_length"), default=180, minimum=40, maximum=280)
 
     limit_error = _enforce_plan_limit(request.user, GenerationRequest.KIND_SHORTEN)
@@ -59,6 +70,7 @@ def shorten_view(request):
         language=language,
         variant_count=variant_count,
         target_length=target_length,
+        profile=profile,
     )
     item = create_generation_record(
         user=request.user,
@@ -84,9 +96,20 @@ def reply_view(request):
     if not source_text:
         return json_error("Source text is required.", code="missing_source_text")
 
-    tone = pick_first(data, "tone", default="friendly")
-    language = pick_first(data, "language", "locale")
-    variant_count = coerce_int(pick_first(data, "variant_count", "count"), default=3, minimum=1, maximum=5)
+    profile = getattr(request.user, "profile", None)
+    tone = pick_first(data, "tone", default=getattr(profile, "preferred_tone", "friendly"))
+    language = pick_first(
+        data,
+        "language",
+        "locale",
+        default=getattr(profile, "preferred_translate_language", "") or getattr(profile, "preferred_language", ""),
+    )
+    variant_count = coerce_int(
+        pick_first(data, "variant_count", "count"),
+        default=getattr(profile, "preferred_variant_count", 3),
+        minimum=1,
+        maximum=3,
+    )
 
     limit_error = _enforce_plan_limit(request.user, GenerationRequest.KIND_REPLY)
     if limit_error:
@@ -98,6 +121,7 @@ def reply_view(request):
         tone=tone,
         language=language,
         variant_count=variant_count,
+        profile=profile,
     )
     item = create_generation_record(
         user=request.user,

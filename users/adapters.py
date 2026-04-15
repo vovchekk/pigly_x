@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
@@ -12,6 +13,9 @@ User = get_user_model()
 
 class PiglyAccountAdapter(DefaultAccountAdapter):
     def get_login_redirect_url(self, request):
+        next_url = request.GET.get("next") or request.POST.get("next")
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+            return next_url
         return reverse("core:dashboard")
 
 
