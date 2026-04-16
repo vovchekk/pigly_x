@@ -47,6 +47,10 @@ def generate_random_username():
 
 
 class UserProfile(models.Model):
+    SHORTEN_TRIGGER_MIN = 1
+    SHORTEN_TRIGGER_MAX = 10000
+    SHORTEN_TRIGGER_DEFAULT = 200
+
     VARIANT_ONE = 1
     VARIANT_TWO = 2
     VARIANT_THREE = 3
@@ -141,13 +145,21 @@ class UserProfile(models.Model):
     preferred_dash_style = models.CharField(max_length=16, choices=DASH_CHOICES, default=DASH_NDASH)
     preferred_terminal_punctuation = models.CharField(max_length=16, choices=PUNCT_CHOICES, default=PUNCT_NONE)
     preferred_capitalization = models.CharField(max_length=16, choices=CAPS_CHOICES, default=CAPS_UPPER)
+    preferred_shorten_trigger_length = models.PositiveIntegerField(default=SHORTEN_TRIGGER_DEFAULT)
+    preferred_inline_translate_enabled = models.BooleanField(default=False)
 
     def __str__(self):
         return f"Profile for {self.user.email}"
 
     @property
     def selected_comment_styles(self):
-        styles = [value for value in (self.preferred_comment_styles or []) if value in dict(self.COMMENT_STYLE_CHOICES)]
+        valid_builtin_ids = set(dict(self.COMMENT_STYLE_CHOICES))
+        valid_custom_ids = {item["id"] for item in self.custom_comment_styles}
+        styles = [
+            value
+            for value in (self.preferred_comment_styles or [])
+            if value in valid_builtin_ids or value in valid_custom_ids
+        ]
         return styles or [self.STYLE_SUPPORTIVE]
 
     @property
@@ -181,6 +193,14 @@ class UserProfile(models.Model):
             cls.STYLE_IRONIC: "confident",
         }
         return mapping.get(style, "friendly")
+
+    @classmethod
+    def normalize_shorten_trigger_length(cls, value):
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError):
+            return cls.SHORTEN_TRIGGER_DEFAULT
+        return max(cls.SHORTEN_TRIGGER_MIN, min(cls.SHORTEN_TRIGGER_MAX, normalized))
 
 
 class PlanAccess(models.Model):

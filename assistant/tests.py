@@ -69,6 +69,22 @@ class AssistantApiTests(TestCase):
         self.assertEqual(payload["request"]["request_data"]["result_styles"][1]["style_id"], "sharp")
         self.assertEqual(GenerationRequest.objects.filter(user=self.user, kind="reply").count(), 1)
 
+    @patch("assistant.services._call_gemini_text", return_value="Hello, how are you?")
+    def test_translate_returns_translated_text(self, _mock_gemini):
+        response = self.client.post(
+            reverse("assistant:translate"),
+            data=json.dumps({"text": "Привет, как дела?"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["translation"], "Hello, how are you?")
+        self.assertEqual(payload["request_data"]["language"], "en")
+        self.assertEqual(GenerationRequest.objects.filter(user=self.user, kind="reply").count(), 0)
+        self.assertEqual(GenerationRequest.objects.filter(user=self.user, kind="shorten").count(), 0)
+
     def test_unauthenticated_requests_are_rejected(self):
         self.client.logout()
         response = self.client.post(
@@ -79,6 +95,16 @@ class AssistantApiTests(TestCase):
 
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["error"]["code"], "not_authenticated")
+
+    def test_translate_rejects_empty_text(self):
+        response = self.client.post(
+            reverse("assistant:translate"),
+            data=json.dumps({"text": ""}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["code"], "missing_source_text")
 
     @patch("assistant.services._call_gemini_text", return_value="1. [supportive] Ship this week while the context is still hot.")
     def test_extension_token_can_call_api(self, _mock_gemini):

@@ -107,6 +107,7 @@ def _build_auth_payload(request, token=None):
             "language": request.user.profile.preferred_language,
             "tone": request.user.profile.preferred_tone,
             "comment_styles": request.user.profile.selected_comment_styles,
+            "custom_comment_styles": request.user.profile.custom_comment_styles,
             "variant_count": request.user.profile.preferred_variant_count,
             "translate_to_language": request.user.profile.preferred_translate_language,
             "comment_length": request.user.profile.preferred_comment_length,
@@ -114,6 +115,8 @@ def _build_auth_payload(request, token=None):
             "dash_style": request.user.profile.preferred_dash_style,
             "terminal_punctuation": request.user.profile.preferred_terminal_punctuation,
             "capitalization": request.user.profile.preferred_capitalization,
+            "shorten_trigger_length": request.user.profile.preferred_shorten_trigger_length,
+            "translate_enabled": request.user.profile.preferred_inline_translate_enabled,
         },
         "plan": {
             "name": plan_access.plan,
@@ -165,7 +168,9 @@ def profile_update_view(request):
     profile = request.user.profile
     
     if "comment_styles" in data and isinstance(data["comment_styles"], list):
-        profile.preferred_comment_styles = [s for s in data["comment_styles"] if s in dict(profile.COMMENT_STYLE_CHOICES)]
+        valid_style_ids = set(dict(profile.COMMENT_STYLE_CHOICES))
+        valid_style_ids.update(item["id"] for item in profile.custom_comment_styles)
+        profile.preferred_comment_styles = [s for s in data["comment_styles"] if s in valid_style_ids]
 
     if "variant_count" in data:
         try:
@@ -193,6 +198,13 @@ def profile_update_view(request):
     if "capitalization" in data and data["capitalization"] in dict(profile.CAPS_CHOICES):
         profile.preferred_capitalization = data["capitalization"]
 
+    if "shorten_trigger_length" in data:
+        profile.preferred_shorten_trigger_length = profile.normalize_shorten_trigger_length(data["shorten_trigger_length"])
+
+    if "translate_enabled" in data:
+        raw_translate_enabled = data["translate_enabled"]
+        profile.preferred_inline_translate_enabled = str(raw_translate_enabled).strip().lower() in {"1", "true", "yes", "on"}
+
     profile.save(update_fields=[
         "preferred_comment_styles", 
         "preferred_variant_count",
@@ -201,7 +213,9 @@ def profile_update_view(request):
         "preferred_emoji_mode",
         "preferred_dash_style",
         "preferred_terminal_punctuation",
-        "preferred_capitalization"
+        "preferred_capitalization",
+        "preferred_shorten_trigger_length",
+        "preferred_inline_translate_enabled",
     ])
     
     payload = _build_auth_payload(request)

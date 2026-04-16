@@ -11,6 +11,11 @@
       <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a5 5 0 1 1-5 5H5a7 7 0 1 0 12.65-5.65z"></path>
     </svg>
   `;
+  const TRANSLATE_ICON_SVG = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.87 15.07 11 11l-1.87 4.07h3.74ZM18.5 4h-5V2.5a.5.5 0 0 0-1 0V4h-7a.5.5 0 0 0 0 1H11c-.07 1.83-.64 3.54-1.63 5A13.06 13.06 0 0 1 7.3 7.76a.5.5 0 1 0-.8.6 14.1 14.1 0 0 0 2.25 2.44A13 13 0 0 1 5.4 13.8a.5.5 0 1 0 .4.92 14.14 14.14 0 0 0 3.76-3.12 13.88 13.88 0 0 0 1.66 1.16.5.5 0 0 0 .56-.83c-.5-.34-.98-.72-1.41-1.13 1.18-1.66 1.87-3.68 1.94-5.8h2.66a.5.5 0 0 0 0-1ZM19.95 20.78l-3.84-8.35a.5.5 0 0 0-.9 0l-3.84 8.35a.5.5 0 0 0 .91.42l1.3-2.83h4.26l1.3 2.83a.5.5 0 1 0 .91-.42Z"></path>
+    </svg>
+  `;
   const SHORTEN_ICON_SRC = chrome.runtime.getURL("images/lupa.png");
   const COMMENT_ICON_SRC = chrome.runtime.getURL("images/comment.png");
 
@@ -32,8 +37,11 @@
   const GENERATION_CACHE_TTL_MS = 90 * 1000;
   let featureState = {
     replies: true,
-    shorten: true
+    shorten: true,
+    translate: false
   };
+  let shortenerTriggerLength = 200;
+  const DEFAULT_SHORTENER_TRIGGER_LENGTH = 200;
 
   function getCachedGeneration(cacheKey) {
     const entry = generationCache.get(cacheKey);
@@ -65,8 +73,10 @@
 
   function init() {
     loadFeatures(() => {
-      processPage();
-      observeDom();
+      loadUserDefaults(() => {
+        processPage();
+        observeDom();
+      });
     });
 
     document.addEventListener("click", (event) => {
@@ -84,8 +94,19 @@
         const nextFeatures = changes.pigly_features.newValue || {};
         featureState = {
           replies: nextFeatures.replies !== false,
-          shorten: nextFeatures.shorten !== false
+          shorten: nextFeatures.shorten !== false,
+          translate: nextFeatures.translate === true
         };
+        resetInjectedUi();
+        processPage();
+      });
+    }
+
+    if (chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local" || !changes.pigly_user) return;
+        syncTranslateFeature(changes.pigly_user.newValue?.defaults);
+        shortenerTriggerLength = resolveShortenerTriggerLength(changes.pigly_user.newValue?.defaults);
         resetInjectedUi();
         processPage();
       });
@@ -98,8 +119,21 @@
         const nextFeatures = result.pigly_features || {};
         featureState = {
           replies: nextFeatures.replies !== false,
-          shorten: nextFeatures.shorten !== false
+          shorten: nextFeatures.shorten !== false,
+          translate: nextFeatures.translate === true
         };
+        callback();
+      });
+    } catch (_error) {
+      callback();
+    }
+  }
+
+  function loadUserDefaults(callback) {
+    try {
+      chrome.storage.local.get(["pigly_user"], (result) => {
+        syncTranslateFeature(result.pigly_user?.defaults);
+        shortenerTriggerLength = resolveShortenerTriggerLength(result.pigly_user?.defaults);
         callback();
       });
     } catch (_error) {
@@ -124,9 +158,13 @@
     if (featureState.shorten) {
       injectShortenButtons();
     }
-    if (featureState.replies) {
+    if (featureState.replies || featureState.translate) {
       injectReplyComposerButtons();
     }
+  }
+
+  function syncTranslateFeature(defaults) {
+    featureState.translate = !!defaults?.translate_enabled;
   }
 
   function resetInjectedUi() {
@@ -146,6 +184,7 @@
       const tweetText = extractTweetText(tweet);
       const userNameBlock = tweet.querySelector(USER_NAME_SELECTOR);
       if (!tweetText || !userNameBlock) return;
+      if (!shouldShowShortenButton(tweet, tweetText)) return;
       const mountTarget = findShortenMount(tweet, userNameBlock);
       if (!mountTarget || !mountTarget.node) return;
 
@@ -162,14 +201,20 @@
       button.innerHTML = `<img src="${SHORTEN_ICON_SRC}" alt="" class="pigly-trigger-icon">`;
       bindTriggerGuards(button);
 
-      button.addEventListener("click", (event) => {
+      button.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
+
+        const preparedText = await prepareShortenSourceText(tweet, tweetText);
+        if (!preparedText) {
+          return;
+        }
+
         toggleGenerationPanel({
           mode: "shorten",
           wrapperNode: wrapper,
           anchorNode: button,
-          sourceText: tweetText
+          sourceText: preparedText
         });
       });
 
@@ -223,31 +268,49 @@
     document.querySelectorAll(COMPOSER_SELECTOR).forEach((composer) => {
       const context = resolveReplyContext(composer);
       if (!context || context.anchorNode.dataset.piglyReplyRoot === "true") return;
+      if (!featureState.replies && !featureState.translate) return;
 
       const wrapper = document.createElement("div");
       wrapper.className = "pigly-composer-wrapper";
 
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "pigly-composer-trigger";
-      button.title = "Generate AI reply with Pigly";
-      button.setAttribute("aria-label", "Generate AI reply with Pigly");
-      button.innerHTML = `<img src="${COMMENT_ICON_SRC}" alt="" class="pigly-trigger-icon">`;
-      bindTriggerGuards(button);
-
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        toggleGenerationPanel({
-          mode: "reply",
-          wrapperNode: wrapper,
-          anchorNode: button,
-          sourceText: context.sourceText,
-          context
+      if (featureState.translate) {
+        const translateButton = document.createElement("button");
+        translateButton.type = "button";
+        translateButton.className = "pigly-composer-trigger pigly-composer-trigger-translate";
+        translateButton.title = "Translate typed text to English";
+        translateButton.setAttribute("aria-label", "Translate typed text to English");
+        translateButton.innerHTML = TRANSLATE_ICON_SVG;
+        bindTriggerGuards(translateButton);
+        translateButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          runInlineTranslate({ button: translateButton, context });
         });
-      });
+        wrapper.appendChild(translateButton);
+      }
 
-      wrapper.appendChild(button);
+      if (featureState.replies) {
+        const replyButton = document.createElement("button");
+        replyButton.type = "button";
+        replyButton.className = "pigly-composer-trigger";
+        replyButton.title = "Generate AI reply with Pigly";
+        replyButton.setAttribute("aria-label", "Generate AI reply with Pigly");
+        replyButton.innerHTML = `<img src="${COMMENT_ICON_SRC}" alt="" class="pigly-trigger-icon">`;
+        bindTriggerGuards(replyButton);
+        replyButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          toggleGenerationPanel({
+            mode: "reply",
+            wrapperNode: wrapper,
+            anchorNode: replyButton,
+            sourceText: context.sourceText,
+            context
+          });
+        });
+        wrapper.appendChild(replyButton);
+      }
+
       context.anchorNode.dataset.piglyReplyRoot = "true";
       context.anchorNode.setAttribute("data-pigly-reply-root", "true");
       mountReplyWrapper(context, wrapper);
@@ -410,9 +473,144 @@
     context.mount.node.appendChild(wrapper);
   }
 
+  function showInlineComposerNotice(wrapper, message, tone = "neutral") {
+    if (!wrapper || !message) return;
+
+    wrapper.querySelectorAll(".pigly-inline-notice").forEach((node) => node.remove());
+    const notice = document.createElement("div");
+    notice.className = `pigly-inline-notice pigly-inline-notice-${tone}`;
+    notice.textContent = message;
+    wrapper.appendChild(notice);
+    window.setTimeout(() => {
+      if (notice.isConnected) {
+        notice.remove();
+      }
+    }, 2200);
+  }
+
+  function setComposerButtonLoading(button, isLoading) {
+    if (!button) return;
+    button.disabled = isLoading;
+    button.classList.toggle("is-loading", isLoading);
+  }
+
+  function runInlineTranslate({ button, context }) {
+    const composer = context?.composer;
+    const wrapper = button?.closest(".pigly-composer-wrapper");
+    const composerText = readComposerText(composer);
+
+    if (!composerText) {
+      showInlineComposerNotice(wrapper, "Type something first.", "error");
+      return;
+    }
+
+    setComposerButtonLoading(button, true);
+    try {
+      chrome.runtime.sendMessage({ action: "getSession" }, (sessionRes) => {
+        if (chrome.runtime.lastError) {
+          showInlineComposerNotice(wrapper, "Reload the page and try again.", "error");
+          setComposerButtonLoading(button, false);
+          return;
+        }
+        if (!sessionRes || !sessionRes.authenticated) {
+          showInlineComposerNotice(wrapper, "Sign in to Pigly first.", "error");
+          setComposerButtonLoading(button, false);
+          return;
+        }
+
+        chrome.runtime.sendMessage(
+          {
+            action: "translate",
+            payload: {
+              text: composerText,
+              target_language: "en"
+            }
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              showInlineComposerNotice(wrapper, "Translation failed.", "error");
+              setComposerButtonLoading(button, false);
+              return;
+            }
+            if (!response || !response.ok || !response.data?.translation) {
+              showInlineComposerNotice(wrapper, response?.error?.message || "Translation failed.", "error");
+              setComposerButtonLoading(button, false);
+              return;
+            }
+
+            const translatedText = normalizeInlineText(response.data.translation);
+            if (!translatedText) {
+              showInlineComposerNotice(wrapper, "Translation failed.", "error");
+              setComposerButtonLoading(button, false);
+              return;
+            }
+
+            if (replaceComposerText(composer, translatedText)) {
+              showInlineComposerNotice(wrapper, "Translated to English.", "success");
+            } else {
+              showInlineComposerNotice(wrapper, "Could not update the reply box.", "error");
+            }
+            setComposerButtonLoading(button, false);
+          }
+        );
+      });
+    } catch (_error) {
+      showInlineComposerNotice(wrapper, "Translation failed.", "error");
+      setComposerButtonLoading(button, false);
+    }
+  }
+
   function extractTweetText(tweet) {
     const textNode = tweet.querySelector(TWEET_TEXT_SELECTOR);
     return textNode ? textNode.innerText.trim() : "";
+  }
+
+  function findShowMoreControl(tweet) {
+    if (!tweet) return null;
+
+    const nodes = tweet.querySelectorAll('div[role="button"], span, a');
+    return Array.from(nodes).find((node) => {
+      const text = normalizeInlineText(node.textContent || "");
+      return /^(show more|more)$/i.test(text);
+    }) || null;
+  }
+
+  function hasCollapsedShowMore(tweet) {
+    return Boolean(findShowMoreControl(tweet));
+  }
+
+  async function prepareShortenSourceText(tweet, initialText) {
+    if (!tweet) {
+      return normalizeInlineText(initialText);
+    }
+
+    if (!hasCollapsedShowMore(tweet)) {
+      return normalizeInlineText(extractTweetText(tweet) || initialText);
+    }
+
+    const showMoreControl = findShowMoreControl(tweet);
+    if (!showMoreControl) {
+      return normalizeInlineText(extractTweetText(tweet) || initialText);
+    }
+
+    try {
+      showMoreControl.click();
+    } catch (_error) {
+      return normalizeInlineText(extractTweetText(tweet) || initialText);
+    }
+
+    const initialNormalized = normalizeInlineText(initialText);
+    const startedAt = Date.now();
+
+    while (Date.now() - startedAt < 1800) {
+      await new Promise((resolve) => setTimeout(resolve, 90));
+      const nextText = normalizeInlineText(extractTweetText(tweet));
+      if (!hasCollapsedShowMore(tweet) || (nextText && nextText !== initialNormalized)) {
+        return nextText || initialNormalized;
+      }
+    }
+
+    return normalizeInlineText(extractTweetText(tweet) || initialText);
   }
 
   function findSourceTweet({ composer, shell, dialog, sourceText }) {
@@ -589,9 +787,9 @@
     activePanelScrollSnapshot = null;
   }
 
-  function getGenerationCacheKey(mode, sourceText, context) {
+  function getGenerationCacheKey(mode, sourceText, context, payload = {}) {
     const contextText = normalizeInlineText(context?.sourceText || context?.contextText || "");
-    return `${mode}::${normalizeInlineText(sourceText)}::${contextText}`;
+    return `${mode}::${normalizeInlineText(sourceText)}::${contextText}::${JSON.stringify(payload)}`;
   }
 
   function renderLoading(container, mode) {
@@ -863,10 +1061,34 @@
     return String(text || "").replace(/\s+/g, " ").trim();
   }
 
+  function normalizeShortenerTriggerLength(value) {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return DEFAULT_SHORTENER_TRIGGER_LENGTH;
+    return Math.max(1, Math.min(10000, parsed));
+  }
+
+  function resolveShortenerTriggerLength(defaults) {
+    return normalizeShortenerTriggerLength(defaults?.shorten_trigger_length || DEFAULT_SHORTENER_TRIGGER_LENGTH);
+  }
+
+  function shouldShowShortenButton(tweet, sourceText) {
+    if (hasCollapsedShowMore(tweet)) {
+      return true;
+    }
+    return normalizeInlineText(sourceText).length >= shortenerTriggerLength;
+  }
+
   function getShortenTargetLength(sourceText) {
     const normalized = normalizeInlineText(sourceText);
-    const estimated = Math.round(normalized.length * 0.75);
-    return Math.max(240, Math.min(380, estimated || 280));
+    const sourceLength = normalized.length;
+    if (!sourceLength) {
+      return 180;
+    }
+
+    const estimated = Math.round(sourceLength * 0.72);
+    const minimumReduction = Math.max(18, Math.round(sourceLength * 0.1));
+    const maxTarget = Math.max(80, sourceLength - minimumReduction);
+    return Math.max(120, Math.min(380, maxTarget, estimated || maxTarget));
   }
 
   function runPanelGeneration(panel, { contentBox, mode, sourceText, context, forceRefresh = false }) {
@@ -930,22 +1152,8 @@
 
   function requestSessionAndGenerate(contentBox, mode, sourceText, context, panel, options = {}) {
     pruneGenerationCache();
-    const cacheKey = getGenerationCacheKey(mode, sourceText, context);
     const forceRefresh = options.forceRefresh === true;
     const useCache = true;
-
-    if (useCache && !forceRefresh) {
-      const cachedRequest = getCachedGeneration(cacheKey);
-      if (cachedRequest) {
-        if (mode === "shorten") {
-          renderShortenResult(contentBox, cachedRequest);
-        } else {
-          renderReplyResults(contentBox, cachedRequest, sourceText, context);
-        }
-        finishPanelGeneration(panel);
-        return;
-      }
-    }
 
     try {
       chrome.runtime.sendMessage({ action: "getSession" }, (sessionRes) => {
@@ -959,14 +1167,31 @@
           mode === "shorten"
             ? {
                 text: sourceText,
+                language: sessionRes.user?.defaults?.translate_to_language || "",
                 variant_count: 1,
                 target_length: getShortenTargetLength(sourceText)
               }
             : {
                 text: sourceText,
                 context: "",
+                language: sessionRes.user?.defaults?.translate_to_language || "",
                 variant_count: sessionRes.user?.defaults?.variant_count || 3
               };
+
+        const cacheKey = getGenerationCacheKey(mode, sourceText, context, payload);
+
+        if (useCache && !forceRefresh) {
+          const cachedRequest = getCachedGeneration(cacheKey);
+          if (cachedRequest) {
+            if (mode === "shorten") {
+              renderShortenResult(contentBox, cachedRequest);
+            } else {
+              renderReplyResults(contentBox, cachedRequest, sourceText, context);
+            }
+            finishPanelGeneration(panel);
+            return;
+          }
+        }
 
         chrome.runtime.sendMessage({ action: mode, payload }, (response) => {
           if (chrome.runtime.lastError) {

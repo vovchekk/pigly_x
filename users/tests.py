@@ -44,6 +44,8 @@ class DashboardTests(TestCase):
                 "preferred_dash_style": "hyphen",
                 "preferred_terminal_punctuation": "keep",
                 "preferred_capitalization": "preserve",
+                "preferred_shorten_trigger_length": 420,
+                "preferred_inline_translate_enabled": "on",
             },
             follow=True,
         )
@@ -59,6 +61,8 @@ class DashboardTests(TestCase):
         self.assertEqual(self.user.profile.preferred_dash_style, "hyphen")
         self.assertEqual(self.user.profile.preferred_terminal_punctuation, "keep")
         self.assertEqual(self.user.profile.preferred_capitalization, "preserve")
+        self.assertEqual(self.user.profile.preferred_shorten_trigger_length, 200)
+        self.assertTrue(self.user.profile.preferred_inline_translate_enabled)
 
     def test_dashboard_shows_payment_history(self):
         Purchase.objects.create(user=self.user, plan="pro", amount_usd="12.00", status="paid")
@@ -211,6 +215,73 @@ class ExtensionSessionTests(TestCase):
         self.assertEqual(payload["auth"]["method"], "session")
         self.assertIn("extension_token", payload)
         self.assertEqual(payload["user"]["email"], self.user.email)
+        self.assertEqual(payload["defaults"]["shorten_trigger_length"], 200)
+        self.assertFalse(payload["defaults"]["translate_enabled"])
+
+    def test_session_endpoint_includes_custom_comment_styles(self):
+        self.user.profile.preferred_comment_styles = ["supportive", "custom-test"]
+        self.user.profile.preferred_custom_comment_styles = [
+            {
+                "id": "custom-test",
+                "label": "Test",
+                "prompt": "Write like test.",
+                "description": "ttt",
+            }
+        ]
+        self.user.profile.save(update_fields=["preferred_comment_styles", "preferred_custom_comment_styles"])
+
+        response = self.client.get(reverse("users_api:session"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["defaults"]["comment_styles"], ["supportive", "custom-test"])
+        self.assertEqual(payload["defaults"]["custom_comment_styles"][0]["id"], "custom-test")
+
+    def test_profile_update_accepts_shorten_trigger_length(self):
+        response = self.client.post(
+            reverse("users_api:profile_update"),
+            data=json.dumps({"shorten_trigger_length": 420}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.preferred_shorten_trigger_length, 420)
+        self.assertEqual(response.json()["defaults"]["shorten_trigger_length"], 420)
+
+    def test_profile_update_preserves_custom_comment_style_ids(self):
+        self.user.profile.preferred_custom_comment_styles = [
+            {
+                "id": "custom-test",
+                "label": "Test",
+                "prompt": "Write like test.",
+                "description": "ttt",
+            }
+        ]
+        self.user.profile.save(update_fields=["preferred_custom_comment_styles"])
+
+        response = self.client.post(
+            reverse("users_api:profile_update"),
+            data=json.dumps({"comment_styles": ["supportive", "custom-test"]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.preferred_comment_styles, ["supportive", "custom-test"])
+        self.assertEqual(response.json()["defaults"]["comment_styles"], ["supportive", "custom-test"])
+
+    def test_profile_update_accepts_translate_enabled(self):
+        response = self.client.post(
+            reverse("users_api:profile_update"),
+            data=json.dumps({"translate_enabled": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.user.profile.refresh_from_db()
+        self.assertTrue(self.user.profile.preferred_inline_translate_enabled)
+        self.assertTrue(response.json()["defaults"]["translate_enabled"])
 
     def test_rotate_endpoint_reissues_extension_token(self):
         initial = ExtensionAccessToken.objects.create(user=self.user)

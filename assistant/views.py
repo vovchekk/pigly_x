@@ -6,7 +6,13 @@ from django.views.decorators.csrf import csrf_exempt
 from history.models import GenerationRequest
 from history.serializers import serialize_generation_request
 
-from .services import GeminiGenerationError, build_reply_generation, build_shorten_generation, create_generation_record
+from .services import (
+    GeminiGenerationError,
+    build_reply_generation,
+    build_shorten_generation,
+    build_translate_generation,
+    create_generation_record,
+)
 from .utils import (
     coerce_int,
     json_error,
@@ -19,6 +25,16 @@ from .utils import (
 
 def _build_response(item):
     return JsonResponse({"status": "ok", "request": serialize_generation_request(item)}, status=201)
+
+
+def _build_translate_response(request_data, translated_text):
+    return JsonResponse(
+        {
+            "status": "ok",
+            "translation": translated_text,
+            "request_data": request_data,
+        }
+    )
 
 
 def _enforce_plan_limit(user, kind):
@@ -157,3 +173,27 @@ def reply_view(request):
         results=results,
     )
     return _build_response(item)
+
+
+@csrf_exempt
+@require_api_auth
+@require_POST
+def translate_view(request):
+    data, error = parse_request_data(request)
+    if error:
+        return error
+
+    source_text = pick_first(data, "text", "source_text", "draft_text", "content").strip()
+    if not source_text:
+        return json_error("Source text is required.", code="missing_source_text")
+
+    try:
+        request_data, translated_text = build_translate_generation(source_text=source_text)
+    except GeminiGenerationError as exc:
+        return json_error(
+            str(exc),
+            status=503,
+            code=exc.code,
+            extra=exc.extra,
+        )
+    return _build_translate_response(request_data, translated_text)

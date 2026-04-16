@@ -283,6 +283,22 @@
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="md:col-span-2 xl:col-span-3">
+                            <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900/70">
+                                <div>
+                                    <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Inline translate</div>
+                                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Enable the reply-box translate button in the extension. It translates typed text to English.</div>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    name="{{ form.preferred_inline_translate_enabled.html_name }}"
+                                    id="{{ form.preferred_inline_translate_enabled.id_for_label }}"
+                                    {% if form.instance.preferred_inline_translate_enabled %}checked{% endif %}
+                                    @change="queueSave()"
+                                    class="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-neutral-600 dark:bg-neutral-900"
+                                >
+                            </label>
+                        </div>
                     </div>
                 </div>
             </form>
@@ -412,16 +428,21 @@
                                 </form>
                             </td>
                             <td class="px-7 py-5">
-                                <div class="min-w-[16rem] space-y-3">
-                                    {% if row.is_generation_blocked %}
-                                    <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
-                                        Blocked until {{ row.generation_blocked_until|date:"d.m.Y H:i" }}
+                                <div class="min-w-[15rem] space-y-2">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        {% if row.is_generation_blocked %}
+                                        <span class="inline-flex rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                                            Restricted
+                                        </span>
+                                        <span class="text-xs text-slate-500 dark:text-slate-400">
+                                            until {{ row.generation_blocked_until|date:"d.m.Y H:i" }}
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                            Active
+                                        </span>
+                                        {% endif %}
                                     </div>
-                                    {% else %}
-                                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
-                                        Generation active
-                                    </div>
-                                    {% endif %}
                                     <form method="post" class="flex items-center gap-2">
                                         {% csrf_token %}
                                         <input type="hidden" name="admin_block_user_id" value="{{ row.id }}">
@@ -431,21 +452,15 @@
                                             <option value="{{ value }}">{{ label }}</option>
                                             {% endfor %}
                                         </select>
-                                        <button type="submit" class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500">
+                                        <button type="submit" class="shrink-0 rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500">
                                             Restrict
                                         </button>
-                                    </form>
-                                    {% if row.is_generation_blocked %}
-                                    <form method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="admin_block_user_id" value="{{ row.id }}">
-                                        <input type="hidden" name="admin_page" value="{{ admin_usage_page.number }}">
-                                        <input type="hidden" name="admin_block_action" value="clear">
-                                        <button type="submit" class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950 dark:border-neutral-700 dark:text-slate-200 dark:hover:border-neutral-600 dark:hover:text-white">
+                                        {% if row.is_generation_blocked %}
+                                        <button type="submit" name="admin_block_action" value="clear" class="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950 dark:border-neutral-700 dark:text-slate-200 dark:hover:border-neutral-600 dark:hover:text-white">
                                             Remove
                                         </button>
+                                        {% endif %}
                                     </form>
-                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

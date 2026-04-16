@@ -40,7 +40,7 @@ LOW_SIGNAL_COMMENT_PREFIXES = (
     "самое полезное здесь",
     "ключевой риск здесь",
 )
-BROKEN_SYMBOL_RE = re.compile(r"[\\/<>{}\[\]|]{2,}|[Σ∆√§¶]|(?:[^\w\s.,!?;:'\"()\\-–—%$#@/&+]){4,}")
+BROKEN_SYMBOL_RE = re.compile(r"[\\/<>{}\[\]|]{3,}|[Σ∆√§¶]")
 
 SHORTEN_AMOUNT_RE = re.compile(r"(?:~|≈|about|around)?\s*[$€£]\s?\d[\d,]*(?:\.\d+)?(?:\s?[kmbKMB])?")
 SHORTEN_CASHTAG_RE = re.compile(r"\$[A-Za-z][A-Za-z0-9_]{1,14}")
@@ -72,6 +72,26 @@ def _build_request_data(*, source_text, tone, language, variant_count, context_t
     if profile_defaults:
         data["profile_defaults"] = profile_defaults
     return data
+
+
+def _build_translate_prompt(*, source_text):
+    return (
+        "Translate the text below into natural English.\n"
+        "Keep the meaning, tone, handles, numbers, list structure, and formatting intact.\n"
+        "Do not add commentary, explanations, quotation marks, or multiple variants.\n"
+        "Return only the translated English text.\n\n"
+        "Source text:\n"
+        f"{source_text[:MAX_SOURCE_TEXT_LENGTH]}"
+    )
+
+
+def _normalize_translate_candidate(text):
+    cleaned = normalize_text(text)
+    if not cleaned:
+        return ""
+    cleaned = re.sub(r"^(translation|translated text)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = BROKEN_SYMBOL_RE.sub(" ", cleaned)
+    return normalize_text(cleaned)
 
 
 def _is_transient_generation_error(exc):
@@ -413,16 +433,20 @@ def _build_shorten_prompt(*, source_text, language, variant_count, target_length
         "Do not add facts or interpretations that are not present in the source.\n"
         "When several variants are requested, vary the cut slightly: one more direct, one more neutral, one slightly more punchy.\n"
         f"Aim for roughly {min_words}-{max_words} words per option.\n"
-        "FORMATTING PRIORITY:\n"
-        "- Always separate logical points and paragraphs with double newlines (\\n\\n).\n"
-        "- If the original post has a list, keep it as a list with markers (-, •, 1.).\n"
-        "- Do NOT bundle everything into a single wall of text.\n\n"
-        "Return only the numbered list, no notes or commentary.\n\n"
+        "3. Rewrite the content to be shorter but keep all key facts (names, numbers, assets).\n"
+        "4. Always use TWO newlines (\\n\\n) between separate logical blocks or paragraphs to ensure readability.\n"
+        "- If the original has a list, the rewritten version MUST also include clear markers and blank lines between points if they are complex.\n"
+        "- Do NOT return a single dense paragraph if the original had structure.\n"
+        "Return ONLY the numbered options.\n\n"
         "Source post:\n"
         f"{source_text[:MAX_SOURCE_TEXT_LENGTH]}\n\n"
         "Output format:\n"
-        "Return ONLY the numbered list. Use newlines and original bullet points for every list item.\n"
-        f"{numbered_slots}"
+        "1. [Text of variant 1 with\n\nseparate paragraphs]\n"
+        "2. [Text of variant 2 with\n\nseparate paragraphs]\n\n"
+        "Crucial example of ONE variant:\n"
+        "1. First paragraph of the short version.\n\n"
+        "Second paragraph with more details.\n\n"
+        "Final punchline.\n"
     )
 
 
@@ -485,6 +509,7 @@ def _extract_single_shorten_candidate(text):
     cleaned = str(text or "").strip()
     if not cleaned:
         return ""
+    # Only strip leading number if it's the start of the whole variant
     cleaned = re.sub(r"^\s*\d+[\.\)]\s*", "", cleaned)
     cleaned = re.sub(r"^\s*-\s*", "", cleaned)
     cleaned = re.sub(r"^\s*option\s*\d*\s*:\s*", "", cleaned, flags=re.IGNORECASE)
@@ -494,7 +519,7 @@ def _extract_single_shorten_candidate(text):
 def _parse_numbered_reply_items(text, expected_count):
     items = []
     for chunk in re.split(r'(?=\b\d+[\.\)])', str(text or "").replace("\r", "\n")):
-        line = chunk.replace("\n", " ").strip()
+        line = chunk.strip()
         match = NUMBERED_ITEM_RE.match(line)
         if not match:
             continue
@@ -532,7 +557,7 @@ def _cleanup_reply_candidate(text):
     cleaned = re.sub(r"^(reply|comment|option)\s*:\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = BROKEN_SYMBOL_RE.sub(" ", cleaned)
     cleaned = re.sub(r"\s+([,.;:!?])", r"\1", cleaned)
-    return re.sub(r"\s+", " ", cleaned).strip(" -")
+    return re.sub(r"[ \t]+", " ", cleaned).strip(" -")
 
 
 def _looks_generic_reply(text):
@@ -902,6 +927,8 @@ def _normalize_shorten_candidate(text, target_length):
     cleaned = re.sub(r"^(in short|overall|the point is|this post says)\s*,?\s*", "", cleaned, flags=re.IGNORECASE)
     cleaned = BROKEN_SYMBOL_RE.sub(" ", cleaned)
     cleaned = re.sub(r"[ \t]+([,.;:!?])", r"\1", cleaned)
+    # Ensure double newlines are prioritized over excessive horizontal spaces
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = re.sub(r"[ \t]+", " ", cleaned).strip(" -")
     # Soft limits to prevent catastrophic outputs, trusting the prompt mostly
     max_chars = max(400, int(target_length or 180) * 2)
@@ -1320,9 +1347,10 @@ def _drops_required_shorten_signals(candidate_text, source_text):
     strict_markers = [m for m in source_markers if len(m) <= 16 or m.startswith("@")]
     if len(set(strict_markers)) >= 2:
         candidate_marker_hits = sum(1 for marker in set(strict_markers) if marker and marker in candidate)
-        if candidate_marker_hits < 2:
+        # Allow dropping some markers if the list is long, but keep at least 1 or 25%
+        if candidate_marker_hits < min(len(set(strict_markers)), 2):
             return True
-    elif source_number_count >= 2 and len(candidate.split()) < max(10, len(source.split()) // 6):
+    elif source_number_count >= 2 and len(candidate.split()) < max(8, len(source.split()) // 8):
         return True
 
     return False
@@ -1387,7 +1415,9 @@ def _drops_multi_section_balance(candidate_text, source_text):
 def _is_overcompressed_shorten(candidate_text, source_text):
     source_words = WORD_RE.findall(normalize_text(source_text))
     candidate_words = WORD_RE.findall(normalize_text(candidate_text))
-    minimum_words = max(10, int(round(len(source_words) * 0.20)))
+    # Further soften: was 0.12, now 0.08, with an absolute minimum of 5 words
+    # This ensures that even very short but punchy Russian summaries pass.
+    minimum_words = max(5, int(round(len(source_words) * 0.08)))
     return len(candidate_words) < minimum_words
 
 
@@ -1432,16 +1462,29 @@ def _clean_shorten_candidates(candidates, source_text, target_length, variant_co
     return cleaned_items
 
 
+def _generate_translate_text(*, source_text):
+    raw = _call_gemini_text(
+        prompt=_build_translate_prompt(source_text=source_text),
+        max_output_tokens=900,
+        temperature=0.15,
+        top_p=0.8,
+    )
+    translated = _normalize_translate_candidate(raw)
+    if translated:
+        return translated, "gemini"
+    raise GeminiGenerationError(
+        "Gemini translate generation returned unusable content.",
+        code="invalid_gemini_output",
+        extra={"kind": "translate"},
+    )
+
+
 def _looks_like_hard_reject_shorten(text, source_text):
     cleaned = normalize_text(text).lower()
-    if not cleaned or len(cleaned.split()) < 4:
+    # Soften: was 4 words, now 3
+    if not cleaned or len(cleaned.split()) < 3:
         return True
     if cleaned.startswith(("the point is", "in short", "overall", "this post says")):
-        return True
-    handles = re.findall(r"(?<!\w)@[A-Za-z0-9_]{2,32}", text or "")
-    if len(handles) >= 2 and ";" in (text or ""):
-        return True
-    if _drops_required_shorten_signals(text, source_text):
         return True
     return False
 
@@ -1477,7 +1520,7 @@ def _generate_reply_variants(*, source_text, context_text, defaults, style_varia
         if repaired_raw:
             repaired_parsed = _parse_numbered_reply_items(repaired_raw, variant_count + 3)
             repaired = _clean_model_reply_candidates(repaired_parsed, source_text=source_text, language=defaults["language"], defaults=defaults)
-            if len(repaired) >= variant_count:
+            if repaired:
                 return _assign_reply_styles(repaired[:variant_count], style_variants, variant_count), "gemini"
     raise GeminiGenerationError(
         "Gemini reply generation returned unusable content.",
@@ -1506,7 +1549,7 @@ def _generate_shorten_variants(*, source_text, language, tone, variant_count, ta
             if single_candidate:
                 parsed = [single_candidate]
         cleaned = _clean_shorten_candidates(parsed, source_text, target_length, variant_count)
-        if len(cleaned) >= variant_count:
+        if cleaned:
             return cleaned[:variant_count], "gemini"
         if variant_count == 1:
             salvaged = _salvage_single_shorten_candidate(raw, source_text, target_length)
@@ -1531,7 +1574,7 @@ def _generate_shorten_variants(*, source_text, language, tone, variant_count, ta
                 if repaired_single_candidate:
                     repaired_parsed = [repaired_single_candidate]
             repaired = _clean_shorten_candidates(repaired_parsed, source_text, target_length, variant_count)
-            if len(repaired) >= variant_count:
+            if repaired:
                 return repaired[:variant_count], "gemini"
             if variant_count == 1:
                 salvaged_repaired = _salvage_single_shorten_candidate(repaired_raw, source_text, target_length)
@@ -1588,3 +1631,16 @@ def build_reply_generation(*, source_text, context_text="", tone=None, language=
         for index, item in enumerate(results, start=1)
     ]
     return request_data, [item["content"] for item in results]
+
+
+def build_translate_generation(*, source_text):
+    translated_text, engine = _generate_translate_text(source_text=source_text)
+    request_data = _build_request_data(
+        source_text=source_text,
+        tone="neutral",
+        language="en",
+        variant_count=1,
+        engine=engine,
+        generation_mode="translate:en",
+    )
+    return request_data, translated_text

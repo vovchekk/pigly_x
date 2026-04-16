@@ -22,6 +22,8 @@ async function handleMessage(msg) {
       return handleShorten(msg.payload);
     case "reply":
       return handleReply(msg.payload);
+    case "translate":
+      return handleTranslate(msg.payload);
     case "getHistory":
       return handleGetHistory(msg.payload);
     default:
@@ -109,6 +111,11 @@ async function handleReply({ text, context, tone, language, variant_count }) {
     await refreshLimits(result.data); // Or fetch session
   }
   return result;
+}
+
+async function handleTranslate({ text }) {
+  const body = { text };
+  return apiRequest("/api/ai/translate/", { method: "POST", body });
 }
 
 async function handleGetHistory({ kind, limit } = {}) {

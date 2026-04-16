@@ -83,6 +83,7 @@ class UserProfileForm(forms.ModelForm):
     preferred_dash_style = forms.ChoiceField(choices=UserProfile.DASH_CHOICES)
     preferred_terminal_punctuation = forms.ChoiceField(choices=UserProfile.PUNCT_CHOICES)
     preferred_capitalization = forms.ChoiceField(choices=UserProfile.CAPS_CHOICES)
+    preferred_inline_translate_enabled = forms.BooleanField(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -165,4 +166,5 @@ class UserProfileForm(forms.ModelForm):
             "preferred_dash_style",
             "preferred_terminal_punctuation",
             "preferred_capitalization",
+            "preferred_inline_translate_enabled",
         )
