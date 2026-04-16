@@ -9,7 +9,7 @@ from users.models import ExtensionAccessToken
 
 
 CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
-MULTISPACE_RE = re.compile(r"\s+")
+MULTISPACE_RE = re.compile(r"[ \t]+")
 
 
 def json_error(message, *, status=400, code="bad_request", extra=None):
@@ -107,6 +107,8 @@ def normalize_language(value, source_text=""):
         return "ru"
     if candidate in {"en", "english", "английский"}:
         return "en"
+    if candidate in {"zh", "chinese", "中文", "китайский"}:
+        return "zh"
     return "ru" if CYRILLIC_RE.search(source_text or "") else "en"
 
 
@@ -124,8 +126,7 @@ def normalize_tone(value):
 
 
 def normalize_text(value):
-    text = MULTISPACE_RE.sub(" ", str(value or "").strip())
-    return text
+    return MULTISPACE_RE.sub(" ", str(value or "").strip())
 
 
 def trim_words(text, word_count):

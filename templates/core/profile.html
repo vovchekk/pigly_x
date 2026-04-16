@@ -3,8 +3,85 @@
 
 {% block title %}Pigly Dashboard{% endblock %}
 
+{% block head %}
+<style>
+    .welcome-confetti-layer {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 70;
+    }
+
+    .welcome-confetti-piece {
+        position: absolute;
+        bottom: -2.5rem;
+        opacity: 0;
+        border-radius: 9999px;
+        animation-name: welcome-confetti-rise;
+        animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        animation-fill-mode: forwards;
+    }
+
+    @keyframes welcome-confetti-rise {
+        0% {
+            transform: translate3d(0, 0, 0) rotate(0deg) scale(0.9);
+            opacity: 0;
+        }
+        10% {
+            opacity: 1;
+        }
+        100% {
+            transform: translate3d(var(--drift, 0px), -78vh, 0) rotate(var(--rotate, 180deg)) scale(1.05);
+            opacity: 0;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div x-data="dashboardUi()" x-init="init()" class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+    <div x-show="confettiVisible" x-cloak class="welcome-confetti-layer" aria-hidden="true">
+        <template x-for="piece in welcomeConfetti" :key="piece.id">
+            <span class="welcome-confetti-piece" :style="piece.style"></span>
+        </template>
+    </div>
+
+    <div
+        x-show="showWelcomeModal"
+        x-cloak
+        x-transition.opacity
+        @keydown.escape.window="closeWelcomeModal()"
+        class="fixed inset-0 z-[80] flex items-end justify-center px-4 pb-4 pt-20 sm:items-center sm:p-6"
+    >
+        <div class="absolute inset-0 bg-slate-950/55 backdrop-blur-sm" @click="closeWelcomeModal()"></div>
+        <div
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-6 scale-[0.98]"
+            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 scale-[0.98]"
+            class="relative z-10 w-full max-w-lg overflow-hidden rounded-[2rem] border border-amber-200/70 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.22)] dark:border-amber-500/20 dark:bg-neutral-900"
+        >
+            <div class="absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.28),transparent_72%)]"></div>
+            <div class="relative p-6 sm:p-8">
+                <div class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-500/10 dark:text-amber-300" x-text="welcomeCopy('badge')">Welcome</div>
+                <h2 class="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-white" x-text="welcomeCopy('title')">You're in</h2>
+                <p class="mt-4 text-sm leading-7 text-slate-600 dark:text-slate-300" x-text="welcomeCopy('lead')">
+                    Pigly is connected. Your dashboard is ready, your preferences are waiting, and the extension flow can start from here.
+                </p>
+                <p class="mt-3 text-sm leading-7 text-slate-500 dark:text-slate-400" x-text="welcomeCopy('hint')">
+                    Pick your reply style, open X/Twitter, and let Pigly do the repetitive part for you.
+                </p>
+                <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <button type="button" @click="closeWelcomeModal()" class="inline-flex items-center justify-center rounded-2xl bg-amber-400 px-5 py-3 text-sm font-bold text-amber-950 transition hover:bg-amber-300" x-text="welcomeCopy('cta')">Let's go</button>
+                    <a href="/#pricing" class="inline-flex items-center justify-center rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-950 dark:border-neutral-700 dark:text-slate-300 dark:hover:border-neutral-600 dark:hover:text-white" x-text="welcomeCopy('secondary')">View plans</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="space-y-8">
         <section class="relative overflow-hidden rounded-[2rem] border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:px-6 sm:py-5">
             {% if is_supporter %}
@@ -295,6 +372,7 @@
                             <th class="px-7 py-4 font-medium">All</th>
                             <th class="px-7 py-4 font-medium" data-i18n="lastActivityColumn">Last activity</th>
                             <th class="px-7 py-4 font-medium" data-i18n="changePlanColumn">Change plan</th>
+                            <th class="px-7 py-4 font-medium">Generation access</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-sm dark:divide-neutral-800">
@@ -333,10 +411,47 @@
                                     </button>
                                 </form>
                             </td>
+                            <td class="px-7 py-5">
+                                <div class="min-w-[16rem] space-y-3">
+                                    {% if row.is_generation_blocked %}
+                                    <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                                        Blocked until {{ row.generation_blocked_until|date:"d.m.Y H:i" }}
+                                    </div>
+                                    {% else %}
+                                    <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                        Generation active
+                                    </div>
+                                    {% endif %}
+                                    <form method="post" class="flex items-center gap-2">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="admin_block_user_id" value="{{ row.id }}">
+                                        <input type="hidden" name="admin_page" value="{{ admin_usage_page.number }}">
+                                        <select name="admin_block_hours" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-950 outline-none transition focus:border-indigo-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                                            {% for value, label in row.generation_block_choices %}
+                                            <option value="{{ value }}">{{ label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <button type="submit" class="rounded-xl bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-rose-500">
+                                            Restrict
+                                        </button>
+                                    </form>
+                                    {% if row.is_generation_blocked %}
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="admin_block_user_id" value="{{ row.id }}">
+                                        <input type="hidden" name="admin_page" value="{{ admin_usage_page.number }}">
+                                        <input type="hidden" name="admin_block_action" value="clear">
+                                        <button type="submit" class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950 dark:border-neutral-700 dark:text-slate-200 dark:hover:border-neutral-600 dark:hover:text-white">
+                                            Remove
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="6" class="px-7 py-10 text-center text-slate-500 dark:text-slate-400" data-i18n="noUsersYet">No users yet.</td>
+                            <td colspan="7" class="px-7 py-10 text-center text-slate-500 dark:text-slate-400" data-i18n="noUsersYet">No users yet.</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -410,6 +525,9 @@ function dashboardUi() {
     return {
         lang: 'en',
         theme: 'light',
+        showWelcomeModal: {{ show_welcome_modal|yesno:"true,false" }},
+        confettiVisible: false,
+        welcomeConfetti: [],
         copy: {
             ru: {
                 pageTitle: 'Pigly Дашборд',
@@ -458,6 +576,12 @@ function dashboardUi() {
             en: {
                 pageTitle: 'Pigly Dashboard',
                 dashboardTitle: 'Dashboard',
+                welcomeBadge: 'Welcome',
+                welcomeTitle: "You're in",
+                welcomeLead: 'Pigly is connected. Your dashboard is ready, your preferences are waiting, and the extension flow can start from here.',
+                welcomeHint: 'Pick your reply style, open X/Twitter, and let Pigly do the repetitive part for you.',
+                welcomeCta: "Let's go",
+                welcomeSecondary: 'View plans',
                 signOut: 'Sign out',
                 planLabel: 'Plan',
                 freePlanLead: 'You are currently using the free plan with server-side generation limits.',
@@ -511,6 +635,54 @@ function dashboardUi() {
             this.theme = savedTheme === 'dark' ? 'dark' : 'light';
             document.documentElement.classList.toggle('dark', this.theme === 'dark');
             this.applyLanguage();
+            if (this.showWelcomeModal) {
+                this.launchWelcomeCelebration();
+            }
+        },
+        closeWelcomeModal() {
+            this.showWelcomeModal = false;
+        },
+        welcomeCopy(key) {
+            const variants = {
+                en: {
+                    badge: 'Welcome',
+                    title: "You're in",
+                    lead: 'Pigly is connected. Your dashboard is ready, your preferences are waiting, and the extension flow can start from here.',
+                    hint: 'Pick your reply style, open X/Twitter, and let Pigly do the repetitive part for you.',
+                    cta: "Let's go",
+                    secondary: 'View plans',
+                },
+                ru: {
+                    badge: 'Добро пожаловать',
+                    title: 'Ты внутри',
+                    lead: 'Pigly уже подключён. Дашборд готов, настройки ждут, и теперь можно спокойно запускать workflow через расширение.',
+                    hint: 'Выбери стиль ответов, открой X/Twitter и дай Pigly забрать рутину на себя.',
+                    cta: 'Погнали',
+                    secondary: 'Посмотреть тарифы',
+                },
+            };
+            return (variants[this.lang] || variants.en)[key] || variants.en[key] || '';
+        },
+        launchWelcomeCelebration() {
+            const palette = ['#f59e0b', '#fbbf24', '#fde68a', '#fb7185', '#60a5fa', '#34d399'];
+            this.welcomeConfetti = Array.from({ length: 28 }, (_, index) => {
+                const size = 8 + Math.floor(Math.random() * 8);
+                const left = 4 + Math.random() * 92;
+                const drift = `${Math.round((Math.random() - 0.5) * 180)}px`;
+                const rotate = `${Math.round((Math.random() - 0.5) * 720)}deg`;
+                const duration = `${2.8 + Math.random() * 1.8}s`;
+                const delay = `${Math.random() * 0.45}s`;
+                const radius = Math.random() > 0.55 ? '9999px' : '0.35rem';
+                return {
+                    id: `confetti-${index}-${Date.now()}`,
+                    style: `left:${left}%;width:${size}px;height:${size * (Math.random() > 0.5 ? 1.4 : 1)}px;background:${palette[index % palette.length]};animation-duration:${duration};animation-delay:${delay};border-radius:${radius};--drift:${drift};--rotate:${rotate};`,
+                };
+            });
+            this.confettiVisible = true;
+            window.setTimeout(() => {
+                this.confettiVisible = false;
+                this.welcomeConfetti = [];
+            }, 4300);
         },
         setLang(lang) {
             this.lang = lang;

@@ -43,6 +43,8 @@ class PiglySocialAccountAdapter(DefaultSocialAccountAdapter):
 
     def save_user(self, request, sociallogin, form=None):
         user = super().save_user(request, sociallogin, form=form)
+        if request is not None:
+            request.session["show_dashboard_welcome"] = True
         if not user.username:
             user.username = generate_random_username()
             user.save(update_fields=["username"])

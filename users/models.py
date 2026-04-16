@@ -197,6 +197,7 @@ class PlanAccess(models.Model):
     plan = models.CharField(max_length=16, choices=PLAN_CHOICES, default=PLAN_FREE)
     ai_reply_limit = models.PositiveIntegerField(default=30)
     shorten_limit = models.PositiveIntegerField(default=30)
+    generation_blocked_until = models.DateTimeField(blank=True, null=True)
     expires_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -214,6 +215,10 @@ class PlanAccess(models.Model):
             return None
         used = self.user.generation_requests.filter(kind=kind).count()
         return max(limit - used, 0)
+
+    @property
+    def is_generation_blocked(self):
+        return bool(self.generation_blocked_until and self.generation_blocked_until > timezone.now())
 
     @property
     def reply_remaining(self):

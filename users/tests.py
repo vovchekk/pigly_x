@@ -69,6 +69,20 @@ class DashboardTests(TestCase):
         self.assertContains(response, "Payment history")
         self.assertContains(response, "$12.00")
 
+    def test_dashboard_shows_welcome_modal_once_when_session_flag_is_set(self):
+        session = self.client.session
+        session["show_dashboard_welcome"] = True
+        session.save()
+
+        first_response = self.client.get(reverse("core:dashboard"))
+        second_response = self.client.get(reverse("core:dashboard"))
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertContains(first_response, "You're in")
+        self.assertContains(first_response, "Let's go")
+        self.assertEqual(second_response.status_code, 200)
+        self.assertNotContains(second_response, "showWelcomeModal: true")
+
     def test_dashboard_redeems_promo_code(self):
         PromoCode.objects.create(code="BROSKILUDOSKI-TEST", plan="pro", duration_days=30, max_activations=5)
 
@@ -103,6 +117,55 @@ class DashboardTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.preferred_comment_styles, original_styles)
+
+    def test_staff_can_set_temporary_generation_restriction_from_dashboard(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        target = User.objects.create_user(
+            email="blocked@example.com",
+            username="blocked-user",
+            password="pass12345",
+        )
+
+        response = self.client.post(
+            reverse("core:dashboard"),
+            data={
+                "admin_block_user_id": str(target.id),
+                "admin_block_hours": "24",
+                "admin_page": "1",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        target.plan_access.refresh_from_db()
+        self.assertIsNotNone(target.plan_access.generation_blocked_until)
+        self.assertGreater(target.plan_access.generation_blocked_until, timezone.now())
+
+    def test_staff_can_clear_temporary_generation_restriction_from_dashboard(self):
+        self.user.is_staff = True
+        self.user.save(update_fields=["is_staff"])
+        target = User.objects.create_user(
+            email="unblocked@example.com",
+            username="unblocked-user",
+            password="pass12345",
+        )
+        target.plan_access.generation_blocked_until = timezone.now() + timezone.timedelta(hours=6)
+        target.plan_access.save(update_fields=["generation_blocked_until"])
+
+        response = self.client.post(
+            reverse("core:dashboard"),
+            data={
+                "admin_block_user_id": str(target.id),
+                "admin_block_action": "clear",
+                "admin_page": "1",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        target.plan_access.refresh_from_db()
+        self.assertIsNone(target.plan_access.generation_blocked_until)
 
 
 class PublicAuthUiTests(TestCase):

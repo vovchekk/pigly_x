@@ -52,6 +52,7 @@ class PlanAccessInline(admin.StackedInline):
                     "plan",
                     "ai_reply_limit",
                     "shorten_limit",
+                    "generation_blocked_until",
                     "created_at",
                 )
             },
@@ -222,10 +223,10 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(PlanAccess)
 class PlanAccessAdmin(admin.ModelAdmin):
-    list_display = ("user", "plan", "ai_reply_limit", "shorten_limit", "reply_remaining", "shorten_remaining", "created_at")
+    list_display = ("user", "plan", "ai_reply_limit", "shorten_limit", "generation_blocked_until", "reply_remaining", "shorten_remaining", "created_at")
     list_filter = ("plan", "created_at")
     search_fields = ("user__email", "user__username")
-    list_editable = ("plan", "ai_reply_limit", "shorten_limit")
+    list_editable = ("plan", "ai_reply_limit", "shorten_limit", "generation_blocked_until")
 
 
 @admin.register(Purchase)

@@ -277,6 +277,26 @@
   gap: 6px;
 }
 
+.pigly-variant-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 6px;
+}
+
+.pigly-variant-style {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d8e0ea;
+  background: #f7f9fc;
+  color: #5b6674;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
 .pigly-variant,
 .pigly-compact-result {
   border: 1px solid #e4e9ee;
@@ -287,8 +307,8 @@
 
 .pigly-result-copy,
 .pigly-variant-text {
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.55;
   color: #0f1419;
   white-space: pre-wrap;
 }
@@ -302,6 +322,50 @@
 
 .pigly-result-copy-plain {
   padding: 2px 34px 2px 2px;
+}
+
+.pigly-shorten-rich {
+  padding: 10px 34px 10px 10px;
+}
+
+.pigly-shorten-title {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.pigly-shorten-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pigly-shorten-item {
+  padding-top: 2px;
+  border-top: 1px solid #edf2f7;
+}
+
+.pigly-shorten-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.pigly-shorten-label,
+.pigly-shorten-body {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #0f1419;
+}
+
+.pigly-shorten-label strong {
+  font-weight: 800;
+}
+
+.pigly-shorten-body {
+  margin-top: 2px;
+  color: #334155;
 }
 
 .pigly-variant-actions {
@@ -390,6 +454,12 @@
     border-color: #2f3336;
   }
 
+  .pigly-variant-style {
+    background: #171c24;
+    border-color: #303845;
+    color: #c8d1dc;
+  }
+
   .pigly-result-copy,
   .pigly-variant-text {
     color: #f5f7fa;
@@ -430,4 +500,38 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Pigly Utilities - Shadow Tailwind classes */
+.pigly-p-4 { padding: 16px !important; }
+.pigly-p-2 { padding: 8px !important; }
+.pigly-mb-2 { margin-bottom: 8px !important; }
+.pigly-mb-4 { margin-bottom: 16px !important; }
+.pigly-mt-2 { margin-top: 8px !important; }
+.pigly-mt-4 { margin-top: 16px !important; }
+.pigly-font-bold { font-weight: 700 !important; }
+.pigly-font-extrabold { font-weight: 800 !important; }
+.pigly-text-xs { font-size: 11px !important; }
+.pigly-text-sm { font-size: 13px !important; }
+.pigly-text-gray-500 { color: #64748b !important; }
+.pigly-text-indigo-600 { color: #4f46e5 !important; }
+.pigly-leading-relaxed { line-height: 1.625 !important; }
+.pigly-flex { display: flex !important; }
+.pigly-flex-col { flex-direction: column !important; }
+.pigly-items-center { align-items: center !important; }
+.pigly-justify-between { justify-content: space-between !important; }
+.pigly-gap-2 { gap: 8px !important; }
+.pigly-w-full { width: 100% !important; }
+
+.pigly-handle {
+  color: #1d9bf0 !important;
+  font-weight: 600 !important;
+}
+
+/* Global overrides for result elements */
+.pigly-result-copy p {
+  margin-bottom: 12px;
+}
+.pigly-result-copy p:last-child {
+  margin-bottom: 0;
 }

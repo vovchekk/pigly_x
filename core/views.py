@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from history.models import GenerationRequest
@@ -16,6 +17,13 @@ from users.models import PlanAccess, PromoCode, PromoCodeRedemption, User
 
 
 PROMO_COOLDOWN_DAYS = 10
+ADMIN_GENERATION_BLOCK_CHOICES = (
+    ("1", "1h"),
+    ("6", "6h"),
+    ("24", "24h"),
+    ("72", "3d"),
+    ("168", "7d"),
+)
 
 
 def _normalize_promo_code(raw_code):
@@ -42,6 +50,10 @@ def _apply_plan_access_defaults(plan_access, plan):
     else:
         plan_access.ai_reply_limit = 0
         plan_access.shorten_limit = 0
+
+
+def _dashboard_redirect_with_page(page_number):
+    return f"{reverse('core:dashboard')}?admin_page={page_number}"
 
 
 def _redeem_promo_code(*, user, raw_code):
@@ -113,6 +125,9 @@ def _build_admin_usage_rows(page_number=1, per_page=8):
                 "generated_all": user.generated_all or 0,
                 "last_activity_at": user.last_activity_at,
                 "plan_choices": PlanAccess.PLAN_CHOICES,
+                "generation_blocked_until": plan_access.generation_blocked_until if plan_access else None,
+                "is_generation_blocked": plan_access.is_generation_blocked if plan_access else False,
+                "generation_block_choices": ADMIN_GENERATION_BLOCK_CHOICES,
             }
         )
     paginator = Paginator(rows, per_page)
@@ -139,21 +154,51 @@ def profile_view(request):
     plan_access = request.user.plan_access
     purchases = request.user.purchases.all()[:10]
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    show_welcome_modal = False
 
     if request.method == "POST":
         admin_plan_user_id = request.POST.get("admin_plan_user_id")
         admin_plan_value = request.POST.get("admin_plan")
+        admin_block_user_id = request.POST.get("admin_block_user_id")
+        admin_block_hours = request.POST.get("admin_block_hours")
+        admin_block_action = request.POST.get("admin_block_action")
         admin_page = request.POST.get("admin_page") or request.GET.get("admin_page") or 1
         if admin_plan_user_id and admin_plan_value and request.user.is_staff:
             target_user = User.objects.filter(pk=admin_plan_user_id).select_related("plan_access").first()
             valid_plans = {choice[0] for choice in PlanAccess.PLAN_CHOICES}
             if not target_user or admin_plan_value not in valid_plans:
                 messages.error(request, "Could not update the user plan.")
-                return redirect(f"{settings.LOGIN_REDIRECT_URL}?admin_page={admin_page}")
+                return redirect(_dashboard_redirect_with_page(admin_page))
             _apply_plan_access_defaults(target_user.plan_access, admin_plan_value)
             target_user.plan_access.save(update_fields=["plan", "ai_reply_limit", "shorten_limit"])
             messages.success(request, f"Plan updated for {target_user.email}.")
-            return redirect(f"{settings.LOGIN_REDIRECT_URL}?admin_page={admin_page}")
+            return redirect(_dashboard_redirect_with_page(admin_page))
+
+        if admin_block_user_id and request.user.is_staff:
+            target_user = User.objects.filter(pk=admin_block_user_id).select_related("plan_access").first()
+            valid_hours = {value for value, _label in ADMIN_GENERATION_BLOCK_CHOICES}
+            if not target_user:
+                messages.error(request, "Could not update the generation restriction.")
+                return redirect(_dashboard_redirect_with_page(admin_page))
+
+            if admin_block_action == "clear":
+                target_user.plan_access.generation_blocked_until = None
+                target_user.plan_access.save(update_fields=["generation_blocked_until"])
+                messages.success(request, f"Generation restriction cleared for {target_user.email}.")
+                return redirect(_dashboard_redirect_with_page(admin_page))
+
+            if admin_block_hours not in valid_hours:
+                messages.error(request, "Choose a valid restriction duration.")
+                return redirect(_dashboard_redirect_with_page(admin_page))
+
+            blocked_until = timezone.now() + timezone.timedelta(hours=int(admin_block_hours))
+            target_user.plan_access.generation_blocked_until = blocked_until
+            target_user.plan_access.save(update_fields=["generation_blocked_until"])
+            messages.success(
+                request,
+                f"Generation restricted for {target_user.email} until {blocked_until.strftime('%Y-%m-%d %H:%M')}.",
+            )
+            return redirect(_dashboard_redirect_with_page(admin_page))
 
         promo_code = request.POST.get("promo_code")
         if promo_code is not None:
@@ -180,6 +225,7 @@ def profile_view(request):
             )
     else:
         form = UserProfileForm(instance=profile)
+        show_welcome_modal = bool(request.session.pop("show_dashboard_welcome", False))
 
     shorten_used = request.user.generation_requests.filter(kind=GenerationRequest.KIND_SHORTEN).count()
     reply_used = request.user.generation_requests.filter(kind=GenerationRequest.KIND_REPLY).count()
@@ -285,6 +331,7 @@ def profile_view(request):
         "reply_remaining": plan_access.reply_remaining,
         "shorten_remaining": plan_access.shorten_remaining,
         "expires_at": plan_access.expires_at,
+        "show_welcome_modal": show_welcome_modal,
         "show_admin_usage": show_admin_usage,
         "admin_usage_page": admin_usage_page,
         "admin_usage_rows": admin_usage_page.object_list if admin_usage_page else [],

@@ -28,10 +28,40 @@
   let activePanelMode = null;
   let activePanelPlacement = null;
   let activePanelScrollSnapshot = null;
+  const generationCache = new Map();
+  const GENERATION_CACHE_TTL_MS = 90 * 1000;
   let featureState = {
     replies: true,
     shorten: true
   };
+
+  function getCachedGeneration(cacheKey) {
+    const entry = generationCache.get(cacheKey);
+    if (!entry) return null;
+    if (Date.now() - entry.createdAt > GENERATION_CACHE_TTL_MS) {
+      generationCache.delete(cacheKey);
+      return null;
+    }
+    entry.lastAccessAt = Date.now();
+    return entry.request;
+  }
+
+  function setCachedGeneration(cacheKey, request) {
+    generationCache.set(cacheKey, {
+      request,
+      createdAt: Date.now(),
+      lastAccessAt: Date.now()
+    });
+  }
+
+  function pruneGenerationCache() {
+    const now = Date.now();
+    generationCache.forEach((entry, key) => {
+      if (!entry || now - (entry.lastAccessAt || entry.createdAt || 0) > GENERATION_CACHE_TTL_MS) {
+        generationCache.delete(key);
+      }
+    });
+  }
 
   function init() {
     loadFeatures(() => {
@@ -157,6 +187,10 @@
   function shouldSkipShortenForTweet(tweet) {
     if (!tweet) return true;
 
+    if (isReplyThreadComment(tweet)) {
+      return true;
+    }
+
     if (tweet.querySelector(REPLYING_TO_SELECTOR)) {
       return true;
     }
@@ -172,6 +206,17 @@
     }
 
     return false;
+  }
+
+  function isReplyThreadComment(tweet) {
+    const path = window.location.pathname || "";
+    if (!/\/status\/\d+/i.test(path)) {
+      return false;
+    }
+
+    const tweets = Array.from(document.querySelectorAll(TWEET_SELECTOR));
+    const primaryTweet = tweets[0];
+    return Boolean(primaryTweet) && tweet !== primaryTweet;
   }
 
   function injectReplyComposerButtons() {
@@ -431,7 +476,7 @@
     refreshButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      runPanelGeneration(panel, options);
+      runPanelGeneration(panel, { ...options, forceRefresh: true });
     });
   }
 
@@ -544,6 +589,11 @@
     activePanelScrollSnapshot = null;
   }
 
+  function getGenerationCacheKey(mode, sourceText, context) {
+    const contextText = normalizeInlineText(context?.sourceText || context?.contextText || "");
+    return `${mode}::${normalizeInlineText(sourceText)}::${contextText}`;
+  }
+
   function renderLoading(container, mode) {
     container.innerHTML = `
       <div class="pigly-loading">
@@ -563,19 +613,86 @@
     });
   }
 
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatShortenResultText(text) {
+    let value = String(text || "").replace(/\r/g, "").trim();
+    if (!value) return "";
+
+    // Normalize spacing but keep existing newlines
+    value = value.replace(/[ \t]+\n/g, "\n");
+    value = value.replace(/[ \t]{2,}/g, " ");
+
+    // Ensure double newlines for existing single newlines to create distinct paragraphs
+    value = value.replace(/\n([^\n])/g, "\n\n$1");
+    value = value.replace(/\n{3,}/g, "\n\n");
+
+    // Force newline before list items if they are buried in text
+    // Matches "1.", "2.", "•", "-", etc. preceded by a sentence end
+    value = value.replace(/([.!?])\s+(\d+[.)]|[\u2022\u25CF\-\*])\s+/g, "$1\n\n$2 ");
+    
+    // Specifically split handles if they appear as list-like entries
+    value = value.replace(/:\s+(@[A-Za-z0-9_])/g, ":\n\n$1");
+    value = value.replace(/;\s+(@[A-Za-z0-9_])/g, ";\n\n$1");
+    value = value.replace(/([.!?])\s+(@[A-Za-z0-9_])/g, "$1\n\n$2");
+
+    value = value.replace(/\.{3,}\s*$/g, "");
+    
+    // Final cleanup of extra whitespace
+    value = value.replace(/\n\s+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n");
+    return value.trim();
+  }
+
+  function buildShortenResultMarkup(text) {
+    const formatted = formatShortenResultText(text);
+    if (!formatted) {
+      return `<div class="pigly-result-copy pigly-result-copy-plain"></div>`;
+    }
+
+    // Wrap double-newline separated blocks in <p> tags
+    const paragraphs = formatted.split(/\n\n+/).filter(Boolean);
+    const markup = paragraphs.map(p => {
+      let content = escapeHtml(p.trim());
+      
+      // Highlight handles in the escaped text
+      content = content.replace(/(@[A-Za-z0-9_]{2,32})/g, '<span class="pigly-handle">$1</span>');
+
+      // Detect if it's a list item starting with a marker
+      if (/^(\d+[.)]|[\u2022\u25CF\-\*])/.test(p.trim())) {
+        const markerMatch = content.match(/^(\d+[.)]|[\u2022\u25CF\-\*])\s*/);
+        const marker = markerMatch ? markerMatch[0] : "";
+        const body = markerMatch ? content.slice(markerMatch[0].length) : content;
+        return `<p class="pigly-mb-2"><strong>${marker}</strong> ${body}</p>`;
+      }
+      return `<p>${content}</p>`;
+    }).join("");
+
+    return `<div class="pigly-result-copy pigly-result-copy-plain">${markup}</div>`;
+  }
+
   function renderShortenResult(container, requestData) {
     if (!requestData || !requestData.results || requestData.results.length === 0) {
       renderError(container, "No shortened version was generated.");
       return;
     }
-
-    const firstResult = requestData.results[0].content;
-    container.innerHTML = `
-      <div class="pigly-result-copy pigly-result-copy-plain"></div>
-    `;
-
-    container.querySelector(".pigly-result-copy").textContent = firstResult;
+    container.innerHTML = buildShortenResultMarkup(requestData.results[0].content);
   }
+
+  function trimWords(text, wordCount) {
+    const words = normalizeInlineText(text).split(" ").filter(Boolean);
+    if (!words.length) return "";
+    if (words.length <= wordCount) return words.join(" ");
+    return `${words.slice(0, wordCount).join(" ")}...`;
+  }
+
 
   function renderReplyResults(container, requestData, sourceText, context) {
     if (!requestData || !requestData.results || requestData.results.length === 0) {
@@ -585,11 +702,14 @@
 
     container.innerHTML = `<div class="pigly-variant-list"></div>`;
     const list = container.querySelector(".pigly-variant-list");
+    const styleMeta = requestData.request_data?.result_styles || [];
 
-    requestData.results.forEach((item) => {
+    requestData.results.forEach((item, index) => {
+      const meta = styleMeta.find((entry) => Number(entry.position) === index + 1) || null;
       const row = document.createElement("div");
       row.className = "pigly-variant";
       row.innerHTML = `
+        <div class="pigly-variant-head"></div>
         <div class="pigly-variant-text pigly-variant-text-clamped"></div>
         <div class="pigly-variant-actions">
           <button type="button" class="pigly-btn pigly-btn-outline">Copy</button>
@@ -597,6 +717,12 @@
         </div>
       `;
 
+      const head = row.querySelector(".pigly-variant-head");
+      if (meta?.style_label) {
+        head.innerHTML = `<span class="pigly-variant-style">${meta.style_label}</span>`;
+      } else {
+        head.remove();
+      }
       row.querySelector(".pigly-variant-text").textContent = item.content;
 
       const buttons = row.querySelectorAll(".pigly-btn");
@@ -737,7 +863,13 @@
     return String(text || "").replace(/\s+/g, " ").trim();
   }
 
-  function runPanelGeneration(panel, { contentBox, mode, sourceText, context }) {
+  function getShortenTargetLength(sourceText) {
+    const normalized = normalizeInlineText(sourceText);
+    const estimated = Math.round(normalized.length * 0.75);
+    return Math.max(240, Math.min(380, estimated || 280));
+  }
+
+  function runPanelGeneration(panel, { contentBox, mode, sourceText, context, forceRefresh = false }) {
     if (!panel || panel.dataset.loading === "true") return;
 
     panel.dataset.loading = "true";
@@ -755,7 +887,7 @@
       return;
     }
 
-    requestSessionAndGenerate(contentBox, mode, sourceText, context, panel);
+    requestSessionAndGenerate(contentBox, mode, sourceText, context, panel, { forceRefresh });
   }
 
   function finishPanelGeneration(panel) {
@@ -796,7 +928,25 @@
     runPanelGeneration(panel, { contentBox, mode, sourceText, context });
   }
 
-  function requestSessionAndGenerate(contentBox, mode, sourceText, context, panel) {
+  function requestSessionAndGenerate(contentBox, mode, sourceText, context, panel, options = {}) {
+    pruneGenerationCache();
+    const cacheKey = getGenerationCacheKey(mode, sourceText, context);
+    const forceRefresh = options.forceRefresh === true;
+    const useCache = true;
+
+    if (useCache && !forceRefresh) {
+      const cachedRequest = getCachedGeneration(cacheKey);
+      if (cachedRequest) {
+        if (mode === "shorten") {
+          renderShortenResult(contentBox, cachedRequest);
+        } else {
+          renderReplyResults(contentBox, cachedRequest, sourceText, context);
+        }
+        finishPanelGeneration(panel);
+        return;
+      }
+    }
+
     try {
       chrome.runtime.sendMessage({ action: "getSession" }, (sessionRes) => {
         if (!sessionRes || !sessionRes.authenticated) {
@@ -810,7 +960,7 @@
             ? {
                 text: sourceText,
                 variant_count: 1,
-                target_length: 160
+                target_length: getShortenTargetLength(sourceText)
               }
             : {
                 text: sourceText,
@@ -828,6 +978,10 @@
             renderError(contentBox, response?.error?.message || "Generation failed.");
             finishPanelGeneration(panel);
             return;
+          }
+
+          if (useCache) {
+            setCachedGeneration(cacheKey, response.data.request);
           }
 
           if (mode === "shorten") {
